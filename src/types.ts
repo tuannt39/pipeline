@@ -128,3 +128,30 @@ export interface OrcaDelivery {
   delivery_id?: string;
   messages: OrcaMessage[];
 }
+
+import type { z } from 'zod';
+import type {
+  StageStatusSchema,
+  PipelineStatusSchema,
+  StageDefinitionSchema,
+  PipelineProfileSchema,
+  PipelinePoliciesSchema,
+  PipelineConfigSchema,
+  StageStateSchema,
+  PipelineStateSchema,
+  OrcaWorkerDonePayloadSchema,
+  OrcaMessageSchema,
+  OrcaDeliverySchema,
+} from './schemas';
+
+export type InferredStageStatus = z.infer<typeof StageStatusSchema>;
+export type InferredPipelineStatus = z.infer<typeof PipelineStatusSchema>;
+export type InferredStageDefinition = z.infer<typeof StageDefinitionSchema>;
+export type InferredPipelineProfile = z.infer<typeof PipelineProfileSchema>;
+export type InferredPipelinePolicies = z.infer<typeof PipelinePoliciesSchema>;
+export type InferredPipelineConfig = z.infer<typeof PipelineConfigSchema>;
+export type InferredStageState = z.infer<typeof StageStateSchema>;
+export type InferredPipelineState = z.infer<typeof PipelineStateSchema>;
+export type InferredOrcaWorkerDonePayload = z.infer<typeof OrcaWorkerDonePayloadSchema>;
+export type InferredOrcaMessage = z.infer<typeof OrcaMessageSchema>;
+export type InferredOrcaDelivery = z.infer<typeof OrcaDeliverySchema>;

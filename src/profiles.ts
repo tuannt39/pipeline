@@ -3,8 +3,9 @@ import path from 'path';
 import os from 'os';
 import yaml from 'yaml';
 import { PipelineConfig, PipelineProfile } from './types';
+import { PipelineProfileSchema, safeValidatePipelineProfile } from './schemas';
 import { resolveHome, PACKAGE_ROOT } from './config';
-export { PACKAGE_ROOT };
+export { PACKAGE_ROOT, safeValidatePipelineProfile };
 
 export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
   simple: {
@@ -333,17 +334,24 @@ export function loadProfile(profileName: string, config: PipelineConfig, cwd: st
   if (profilePath) {
     try {
       const content = fs.readFileSync(profilePath, 'utf8');
-      const parsed = yaml.parse(content) as PipelineProfile;
-      if (parsed && parsed.name && Array.isArray(parsed.stages)) {
-        return parsed;
+      const parsed = yaml.parse(content);
+      const validated = PipelineProfileSchema.safeParse(parsed);
+      if (validated.success) {
+        return validated.data as PipelineProfile;
       }
+      console.warn(`[pipeline-profile] Invalid profile schema in ${profilePath}:`, validated.error.format());
     } catch (err) {
       console.warn(`[pipeline-profile] Failed to load profile from ${profilePath}:`, err);
     }
   }
 
   if (BUILTIN_PROFILES[profileName]) {
-    return structuredClone(BUILTIN_PROFILES[profileName]);
+    const builtin = BUILTIN_PROFILES[profileName];
+    const validated = PipelineProfileSchema.safeParse(builtin);
+    if (validated.success) {
+      return structuredClone(validated.data as PipelineProfile);
+    }
+    return structuredClone(builtin);
   }
 
   throw new Error(`Pipeline profile "${profileName}" not found. Available profiles: ${Object.keys(BUILTIN_PROFILES).join(', ')}`);

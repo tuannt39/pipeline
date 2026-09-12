@@ -8,3 +8,4 @@ export * from './orca';
 export * from './spawner';
 export * from './controller';
 export * from './cli';
+export * from './schemas';

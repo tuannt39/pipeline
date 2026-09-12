@@ -4,6 +4,8 @@ import os from 'os';
 import yaml from 'yaml';
 import { execSync } from 'child_process';
 import { PipelineConfig } from './types';
+import { PipelineConfigSchema, safeValidatePipelineConfig } from './schemas';
+export { validatePipelineConfig, safeValidatePipelineConfig } from './schemas';
 
 export function hasCommand(cmd: string): boolean {
   try {
@@ -239,9 +241,9 @@ export function loadConfig(customPath?: string, cwd: string = process.cwd()): Pi
 
   try {
     const content = fs.readFileSync(configFile, 'utf8');
-    const parsed = yaml.parse(content) as Partial<PipelineConfig>;
+    const parsed = (yaml.parse(content) ?? {}) as Partial<PipelineConfig>;
 
-    return {
+    const merged = {
       version: parsed.version ?? DEFAULT_CONFIG.version,
       orca: {
         ...DEFAULT_CONFIG.orca,
@@ -268,6 +270,14 @@ export function loadConfig(customPath?: string, cwd: string = process.cwd()): Pi
         ...(parsed.profiles || {}),
       },
     };
+
+    const validated = PipelineConfigSchema.safeParse(merged);
+    if (!validated.success) {
+      console.warn(`[pipeline-config] Config validation warning for ${configFile}:`, validated.error.format());
+      return structuredClone(DEFAULT_CONFIG);
+    }
+
+    return validated.data as PipelineConfig;
   } catch (err) {
     console.warn(`[pipeline-config] Failed to load config from ${configFile}, using defaults:`, err);
     return structuredClone(DEFAULT_CONFIG);

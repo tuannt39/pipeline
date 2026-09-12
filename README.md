@@ -61,6 +61,18 @@ Instead of running an ad-hoc custom scheduler or managing processes manually, th
 
 ---
 
+## Technology Stack
+
+- **Runtime**: [Bun](https://bun.sh/) (`>= 1.2.4`) for execution and rapid testing, with full [Node.js](https://nodejs.org/) (`>= 20.0.0`) API compatibility.
+- **Language**: [TypeScript](https://www.typescriptlang.org/) (`v5.7.3`) with strict compiler checks (`ES2022`).
+- **Orchestration**: [Orca Native Orchestration](https://github.com/stablyai/orca) (`run` → `task` → `worker-start` / `dispatch` → `check --wait` → `worker_done`).
+- **Data & Validation**: [YAML](https://www.npmjs.com/package/yaml) configuration with [Zod](https://zod.dev/) runtime schema validation.
+- **Host Integration**: Dual-harness support for both **Oh My Pi (`omp`)** and **Google Antigravity (`agy`)**.
+
+For a deep-dive analysis into layers, role boundaries, IPC protocols, and state management, see the detailed [Tech Stack Specification](TECHSTACK.md).
+
+---
+
 ## Available Profiles
 
 | Profile | Flow | Use Case |
