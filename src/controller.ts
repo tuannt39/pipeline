@@ -99,6 +99,18 @@ export class PipelineController {
     const state = loadState(pipelineDir);
     const profile = loadProfile(state.profile, this.config, this.cwd);
 
+    // Reset status if previously failed or escalated
+    if (state.status === 'failed' || state.status === 'escalated') {
+      state.status = 'running';
+      for (const [sId, sState] of Object.entries(state.stages)) {
+        if (sState.status === 'failed') {
+          sState.status = 'pending';
+          sState.error = undefined;
+        }
+      }
+      saveState(pipelineDir, state);
+    }
+
     let runId: string;
     try {
       const runRes = await this.orca.runCreate({
@@ -184,11 +196,12 @@ export class PipelineController {
             await this.handleOrcaMessage(msg, pipelineDir, profile, state);
           }
 
-          // Acknowledge delivery batch if ID present
-          if (delivery.delivery_id || delivery.id) {
+          // Acknowledge delivery batch if ID present (support deliveryId and delivery_id)
+          const ackId = (delivery as any).deliveryId || delivery.delivery_id || (delivery as any).id;
+          if (ackId) {
             await this.orca.check({
               runId,
-              ackDeliveryId: delivery.delivery_id || delivery.id,
+              ackDeliveryId: ackId,
             });
           }
 
@@ -467,6 +480,84 @@ export class PipelineController {
 
       saveState(pipelineDir, state);
     } else if (msg.type === 'escalation') {
+      let payload = msg.payload || {};
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          payload = {};
+        }
+      }
+      const taskId = payload.task_id || payload.taskId || msg.taskId;
+      const dispatchId = payload.dispatch_id || payload.dispatchId || msg.dispatchId;
+
+      // Find matching stage
+      let matchedStageId: string | null = null;
+      if (taskId || dispatchId) {
+        for (const [sId, sState] of Object.entries(state.stages)) {
+          if ((taskId && sState.taskId === taskId) || (dispatchId && sState.dispatchId === dispatchId)) {
+            matchedStageId = sId;
+            break;
+          }
+        }
+      }
+
+      if (!matchedStageId && (taskId || dispatchId)) {
+        for (const sId of Object.keys(state.stages)) {
+          if ((taskId && taskId.includes(sId)) || (dispatchId && dispatchId.includes(sId))) {
+            matchedStageId = sId;
+            break;
+          }
+        }
+      }
+
+      if (!matchedStageId) {
+        const runningStages = Object.entries(state.stages).filter(([_, s]) => s.status === 'running');
+        if (runningStages.length === 1) {
+          matchedStageId = runningStages[0][0];
+        }
+      }
+
+      if (matchedStageId) {
+        // Check if stage artifact was actually produced
+        const stageDef = profile.stages.find((s) => s.id === matchedStageId);
+        const outputs = stageDef?.outputs || [];
+        let allOutputsReady = outputs.length > 0;
+        for (const out of outputs) {
+          const p = path.join(pipelineDir, out);
+          if (!fs.existsSync(p) || fs.statSync(p).size === 0) {
+            allOutputsReady = false;
+            break;
+          }
+        }
+
+        if (allOutputsReady) {
+          console.log(`[pipeline-controller] Worker for stage "${matchedStageId}" exited with artifact contract satisfied. Advancing stage.`);
+          this.completeStage(matchedStageId, pipelineDir, profile, state, undefined, `Artifact contract satisfied (${outputs.join(', ')})`);
+          saveState(pipelineDir, state);
+          return;
+        }
+
+        const stageState = state.stages[matchedStageId];
+        const currentRetries = stageState?.retries || 0;
+        if (currentRetries < this.config.policies.max_stage_retries) {
+          console.warn(`[pipeline-controller] Worker for stage "${matchedStageId}" stopped prematurely. Retrying (${currentRetries + 1}/${this.config.policies.max_stage_retries})...`);
+          updateStageState(state, matchedStageId, {
+            status: 'pending',
+            retries: currentRetries + 1,
+            error: msg.body || 'Worker stopped prematurely',
+          });
+          saveState(pipelineDir, state);
+          return;
+        } else {
+          updateStageState(state, matchedStageId, {
+            status: 'failed',
+            endTime: new Date().toISOString(),
+            error: msg.body || `Stage worker failed after ${currentRetries} retries`,
+          });
+        }
+      }
+
       state.status = 'escalated';
       saveState(pipelineDir, state);
     }
