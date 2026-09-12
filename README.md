@@ -112,6 +112,24 @@ profiles:
 
 ---
 
+---
+
+## Installation as OMP Plugin
+
+Install directly into Oh-My-Pi using the plugin manager:
+
+```bash
+omp install git:github.com/tuannt39/pipeline
+```
+
+Verify the installation:
+```bash
+omp plugin list
+omp plugin doctor
+```
+
+---
+
 ## CLI Usage
 
 Run directly via `bin/pipeline.ts` or `bun run pipeline`:
@@ -144,6 +162,7 @@ Run directly via `bin/pipeline.ts` or `bun run pipeline`:
 Inside any OMP session:
 
 ```text
+/pipeline doctor
 /pipeline Implement OAuth login
 /pipeline --profile secure Implement OAuth login
 /pipeline status

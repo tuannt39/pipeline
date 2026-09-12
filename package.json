@@ -6,6 +6,37 @@
   "bin": {
     "pipeline": "./bin/pipeline.ts"
   },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuannt39/pipeline.git"
+  },
+  "keywords": [
+    "omp",
+    "omp-plugin",
+    "pi",
+    "pi-package",
+    "pipeline",
+    "orchestrator",
+    "orca"
+  ],
+  "files": [
+    "bin/",
+    "default-config.yml",
+    "profiles/",
+    "src/",
+    "README.md"
+  ],
+  "omp": {
+    "extensions": [
+      "./src/extension.ts"
+    ]
+  },
+  "pi": {
+    "extensions": [
+      "./src/extension.ts"
+    ]
+  },
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit",

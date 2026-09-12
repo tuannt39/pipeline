@@ -5,7 +5,19 @@ import { listPipelines, getPipelineDir, loadState } from './state';
 import { loadConfig } from './config';
 import { formatStatus } from './cli';
 
-export const RUNNER_BIN_PATH = path.resolve(__dirname, '..', 'bin', 'pipeline.ts');
+export function resolveRunnerBin(): string {
+  const candidates = [
+    path.resolve(__dirname, '..', 'bin', 'pipeline.ts'),
+    path.resolve(__dirname, 'bin', 'pipeline.ts'),
+    path.resolve(process.cwd(), 'bin', 'pipeline.ts'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return candidates[0];
+}
+
+export const RUNNER_BIN_PATH = resolveRunnerBin();
 
 export default function (pi: any): void {
   pi.registerCommand('pipeline', {
@@ -13,6 +25,7 @@ export default function (pi: any): void {
     getArgumentCompletions(argument: string) {
       const trimmed = argument.trim().toLowerCase();
       const subcommands = [
+        { label: 'doctor', value: 'doctor', description: 'Run pipeline diagnostic health check' },
         { label: 'status', value: 'status', description: 'Show status of active or latest pipeline' },
         { label: 'list', value: 'list', description: 'List recent pipeline runs' },
         { label: 'stop', value: 'stop', description: 'Stop a running pipeline' },
@@ -54,6 +67,30 @@ export default function (pi: any): void {
 
       const parts = raw.split(/\s+/);
       const subcmd = parts[0].toLowerCase();
+
+      if (subcmd === 'doctor') {
+        const checks: string[] = [];
+        try {
+          const { execSync } = require('child_process');
+          const orcaVer = execSync('orca --version', { encoding: 'utf8' }).trim();
+          checks.push(`✔ Orca CLI: ${orcaVer}`);
+        } catch {
+          checks.push(`✗ Orca CLI: Not found in PATH (orca)`);
+        }
+        const cfg = loadConfig(undefined, cwd);
+        checks.push(`✔ Config: profile=${cfg.defaults.profile}, agent=${cfg.defaults.agent}`);
+        const { BUILTIN_PROFILES } = require('./profiles');
+        checks.push(`✔ Profiles: ${Object.keys(BUILTIN_PROFILES).join(', ')}`);
+        const bin = resolveRunnerBin();
+        if (fs.existsSync(bin)) {
+          checks.push(`✔ Runner Binary: ${bin}`);
+        } else {
+          checks.push(`✗ Runner Binary: Missing at ${bin}`);
+        }
+        const report = `Pipeline Doctor:\n${checks.join('\n')}`;
+        ctx.ui?.notify?.(report, 'info');
+        return;
+      }
 
       if (subcmd === 'status') {
         const targetId = parts[1];
