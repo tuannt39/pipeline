@@ -75,8 +75,9 @@ export class WorkerSpawner {
     worktree?: string;
     title?: string;
     defaultAgent?: string;
+    prompt?: string;
   }): Promise<SpawnResult> {
-    const { stage, taskId, runId, worktree, title, defaultAgent } = options;
+    const { stage, taskId, runId, worktree, title, defaultAgent, prompt } = options;
     const agentCmd = resolveWorkerCommand(stage, defaultAgent);
 
     // 1. Primary path: worker-start
@@ -100,7 +101,7 @@ export class WorkerSpawner {
       console.warn(`[worker-spawner] worker-start failed for stage "${stage.id}", falling back to terminal create + dispatch:`, err.message);
     }
 
-    // 2. Fallback path: terminal create + dispatch --inject
+    // 2. Fallback path: terminal create + dispatch (without --inject) + terminalSend
     try {
       const termRes = await this.orca.terminalCreate({
         worktree: worktree || stage.worktree || 'active',
@@ -111,9 +112,23 @@ export class WorkerSpawner {
       const dispatchRes = await this.orca.dispatch({
         taskId,
         toHandle: termRes.handle,
-        inject: true,
+        inject: false,
         runId,
       });
+
+      if (prompt && termRes.handle) {
+        // Allow the TUI agent a moment to initialize its input listener
+        await new Promise((r) => setTimeout(r, 1000));
+        try {
+          await this.orca.terminalSend({
+            handle: termRes.handle,
+            text: prompt,
+            enter: true,
+          });
+        } catch (sendErr: any) {
+          console.warn(`[worker-spawner] terminalSend prompt failed:`, sendErr.message);
+        }
+      }
 
       return {
         dispatchId: dispatchRes.dispatchId,

@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import { findConfigFile, hasCommand, detectDefaultAgent, loadConfig } from './config';
+import { findConfigFile, hasCommand, detectDefaultAgent, loadConfig, initConfiguration } from './config';
 import { PipelineController } from './controller';
 import { getPipelineDir, listPipelines, loadState, saveState } from './state';
 import { PipelineState } from './types';
@@ -61,6 +61,30 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
       console.log(`Active Harness Agent:  ${activeAgent.toUpperCase()} (configured default: ${config.defaults.agent})`);
       console.log(`Config File:           ${findConfigFile(undefined, cwd) || 'Using defaults'}`);
       console.log(`Artifacts Root:        ${config.artifacts.root}`);
+      break;
+    }
+    case 'init': {
+      let targetEnv: 'gemini' | 'omp' | undefined;
+      let force = false;
+
+      for (let i = 1; i < argv.length; i++) {
+        if (argv[i] === '--force' || argv[i] === '-f') {
+          force = true;
+        } else if (argv[i] === '--gemini' || argv[i] === '--agy') {
+          targetEnv = 'gemini';
+        } else if (argv[i] === '--omp') {
+          targetEnv = 'omp';
+        }
+      }
+
+      const res = initConfiguration({ targetEnv, force, linkBin: true });
+      console.log('Pipeline Initialized:');
+      console.log('------------------------------------------------------------');
+      console.log(`Config file:  ${res.configPath} (${res.created ? 'created' : 'already exists'})`);
+      if (res.linkedBin) {
+        console.log(`CLI launcher: ${res.linkedBin}`);
+      }
+      console.log(`To customize settings, edit ${res.configPath}`);
       break;
     }
     case 'start': {
@@ -191,6 +215,7 @@ function printHelp(): void {
 Pipeline Orchestrator (Antigravity & OMP, powered by Orca native orchestration)
 
 USAGE:
+  pipeline init [--gemini|--omp] [--force]
   pipeline doctor
   pipeline start [--profile <profile>] [--worktree <worktree>] <objective>
   pipeline status [<id>]

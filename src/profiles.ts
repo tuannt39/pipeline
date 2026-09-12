@@ -3,9 +3,8 @@ import path from 'path';
 import os from 'os';
 import yaml from 'yaml';
 import { PipelineConfig, PipelineProfile } from './types';
-import { resolveHome } from './config';
-
-export const PACKAGE_ROOT = path.resolve(__dirname, '..');
+import { resolveHome, PACKAGE_ROOT } from './config';
+export { PACKAGE_ROOT };
 
 export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
   simple: {

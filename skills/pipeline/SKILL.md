@@ -26,28 +26,33 @@ Activate this skill when:
 
 ## CLI Commands
 
-The orchestrator executable is located at `bin/pipeline.ts` or available via `pipeline`:
+The orchestrator executable is available globally via `pipeline` or directly via `bun run bin/pipeline.ts`:
 
 ```bash
+# 0. Initialize configuration and profiles (run once or auto-initialized on first start)
+pipeline init
+# or if running from plugin directory:
+bun run ~/.gemini/config/plugins/pipeline/bin/pipeline.ts init
+
 # 1. Start a new pipeline run
-bun run bin/pipeline.ts start "Objective description"
-bun run bin/pipeline.ts start --profile secure "Implement OAuth PKCE login"
+pipeline start "Objective description"
+pipeline start --profile secure "Implement OAuth PKCE login"
 
 # 2. Inspect active or specific pipeline status
-bun run bin/pipeline.ts status
-bun run bin/pipeline.ts status pipe-<id>
+pipeline status
+pipeline status pipe-<id>
 
 # 3. List recent pipeline executions
-bun run bin/pipeline.ts list
+pipeline list
 
 # 4. View stage artifacts and logs
-bun run bin/pipeline.ts logs <pipeline-id>
+pipeline logs <pipeline-id>
 
 # 5. Stop a running pipeline
-bun run bin/pipeline.ts stop <pipeline-id>
+pipeline stop <pipeline-id>
 
 # 6. Diagnostic health check
-bun run bin/pipeline.ts doctor
+pipeline doctor
 ```
 
 ## Dual-Harness Execution (Antigravity & OMP)

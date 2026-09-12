@@ -198,7 +198,7 @@ export class OrcaClient {
     runId?: string;
   }): Promise<{ dispatchId: string }> {
     const args = ['orchestration', 'dispatch', '--task', options.taskId, '--to', options.toHandle, '--json'];
-    if (options.inject !== false) args.push('--inject');
+    if (options.inject === true) args.push('--inject');
     if (options.runId) args.push('--run', options.runId);
 
     const res = await this.execFn(this.bin, args, { cwd: this.cwd });
@@ -209,6 +209,21 @@ export class OrcaClient {
     const data = this.parseJsonOutput<{ dispatch?: { id: string }; dispatchId?: string }>(res.stdout, 'dispatch');
     const dispatchId = data.dispatch?.id || data.dispatchId || '';
     return { dispatchId };
+  }
+
+  async terminalSend(options: {
+    handle: string;
+    text: string;
+    enter?: boolean;
+  }): Promise<{ ok: boolean }> {
+    const args = ['terminal', 'send', '--terminal', options.handle, '--text', options.text, '--json'];
+    if (options.enter !== false) args.push('--enter');
+
+    const res = await this.execFn(this.bin, args, { cwd: this.cwd });
+    if (res.exitCode !== 0) {
+      throw new Error(`terminal send failed (code ${res.exitCode}): ${res.stderr || res.stdout}`);
+    }
+    return { ok: true };
   }
 
   async check(options: {

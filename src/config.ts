@@ -22,6 +22,8 @@ export function detectDefaultAgent(): 'agy' | 'omp' {
   return 'agy';
 }
 
+export const PACKAGE_ROOT = path.resolve(__dirname, '..');
+
 export const DEFAULT_CONFIG: PipelineConfig = {
   version: 1,
   orca: {
@@ -38,7 +40,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     max_retries: 2,
   },
   artifacts: {
-    root: '.omp/pipelines',
+    root: '.agents/pipelines',
   },
   policies: {
     require_plan_before_implementation: true,
@@ -69,17 +71,35 @@ export function findConfigFile(customPath?: string, cwd: string = process.cwd())
     return fs.existsSync(resolved) ? resolved : null;
   }
 
-  const candidates = [
+  const isAgy = detectDefaultAgent() === 'agy';
+
+  const agyCandidates = [
     path.join(cwd, '.pipeline', 'config.yml'),
     path.join(cwd, '.pipeline', 'config.yaml'),
     path.join(cwd, '.agents', 'pipeline', 'config.yml'),
-    path.join(cwd, '.omp', 'pipeline', 'config.yml'),
-    path.join(cwd, '.omp', 'pipeline', 'config.yaml'),
     path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml'),
     path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yaml'),
+    path.join(os.homedir(), '.gemini', 'pipeline', 'config.yml'),
+    path.join(os.homedir(), '.gemini', 'pipeline', 'config.yaml'),
+    path.join(cwd, '.omp', 'pipeline', 'config.yml'),
+    path.join(cwd, '.omp', 'pipeline', 'config.yaml'),
     path.join(os.homedir(), '.omp', 'pipeline', 'config.yml'),
     path.join(os.homedir(), '.omp', 'pipeline', 'config.yaml'),
   ];
+
+  const ompCandidates = [
+    path.join(cwd, '.pipeline', 'config.yml'),
+    path.join(cwd, '.pipeline', 'config.yaml'),
+    path.join(cwd, '.omp', 'pipeline', 'config.yml'),
+    path.join(cwd, '.omp', 'pipeline', 'config.yaml'),
+    path.join(os.homedir(), '.omp', 'pipeline', 'config.yml'),
+    path.join(os.homedir(), '.omp', 'pipeline', 'config.yaml'),
+    path.join(cwd, '.agents', 'pipeline', 'config.yml'),
+    path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml'),
+    path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yaml'),
+  ];
+
+  const candidates = isAgy ? agyCandidates : ompCandidates;
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
@@ -88,9 +108,132 @@ export function findConfigFile(customPath?: string, cwd: string = process.cwd())
   return null;
 }
 
+export function initConfiguration(options?: {
+  targetEnv?: 'gemini' | 'omp';
+  force?: boolean;
+  linkBin?: boolean;
+}): {
+  configPath: string;
+  created: boolean;
+  linkedBin?: string;
+} {
+  const isAgy =
+    options?.targetEnv === 'gemini' ||
+    (options?.targetEnv === undefined &&
+      (detectDefaultAgent() === 'agy' || fs.existsSync(path.join(os.homedir(), '.gemini'))));
+
+  const baseDir = isAgy
+    ? path.join(os.homedir(), '.gemini', 'config', 'pipeline')
+    : path.join(os.homedir(), '.omp', 'pipeline');
+  const configPath = path.join(baseDir, 'config.yml');
+  const profilesDir = path.join(baseDir, 'profiles');
+
+  const created = !fs.existsSync(configPath) || options?.force === true;
+
+  if (created) {
+    fs.mkdirSync(profilesDir, { recursive: true });
+
+    const defaultAgent = isAgy ? 'agy' : 'omp';
+    const artifactsRoot = isAgy ? '.agents/pipelines' : '.omp/pipelines';
+
+    const configYaml = `version: 1
+
+orca:
+  command: orca
+
+workspace:
+  default: active
+  create_worktree_only_when_requested: true
+
+defaults:
+  profile: standard
+  agent: ${defaultAgent}
+  timeout_ms: 3600000
+  max_retries: 2
+
+artifacts:
+  root: ${artifactsRoot}
+
+policies:
+  require_plan_before_implementation: true
+  require_review_before_success: true
+  require_tests_before_merge: true
+  max_fix_loops: 3
+  max_stage_retries: 2
+  max_pipeline_retries: 1
+
+profiles:
+  simple: ${profilesDir}/simple.yml
+  standard: ${profilesDir}/standard.yml
+  secure: ${profilesDir}/secure.yml
+  full: ${profilesDir}/full.yml
+`;
+    fs.writeFileSync(configPath, configYaml, 'utf8');
+
+    // Copy profile files from package profiles directory
+    const pkgProfiles = path.join(PACKAGE_ROOT, 'profiles');
+    if (fs.existsSync(pkgProfiles)) {
+      const files = fs.readdirSync(pkgProfiles);
+      for (const file of files) {
+        if (file.endsWith('.yml') || file.endsWith('.yaml')) {
+          const src = path.join(pkgProfiles, file);
+          const dest = path.join(profilesDir, file);
+          if (!fs.existsSync(dest) || options?.force) {
+            fs.copyFileSync(src, dest);
+          }
+        }
+      }
+    }
+  }
+
+  // Setup global CLI launcher in ~/.local/bin/pipeline if directory exists
+  let linkedBin: string | undefined;
+  if (options?.linkBin !== false) {
+    const localBin = path.join(os.homedir(), '.local', 'bin');
+    if (fs.existsSync(localBin)) {
+      const targetLink = path.join(localBin, 'pipeline');
+      const binScript = path.join(PACKAGE_ROOT, 'bin', 'pipeline.ts');
+      try {
+        if (fs.existsSync(targetLink)) {
+          fs.unlinkSync(targetLink);
+        }
+        const wrapperContent = `#!/usr/bin/env bash\nexec bun run "${binScript}" "$@"\n`;
+        fs.writeFileSync(targetLink, wrapperContent, { mode: 0o755 });
+        linkedBin = targetLink;
+      } catch {
+        // ignore if cannot write to localBin
+      }
+    }
+  }
+
+  return { configPath, created, linkedBin };
+}
+
+export function ensureConfigExists(cwd: string = process.cwd()): string {
+  const isAgy = detectDefaultAgent() === 'agy';
+  const geminiConfig = path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml');
+
+  if (isAgy && !fs.existsSync(geminiConfig)) {
+    const res = initConfiguration({ targetEnv: 'gemini' });
+    return res.configPath;
+  }
+
+  const existing = findConfigFile(undefined, cwd);
+  if (existing) return existing;
+
+  const res = initConfiguration();
+  return res.configPath;
+}
+
 export function loadConfig(customPath?: string, cwd: string = process.cwd()): PipelineConfig {
-  const configFile = findConfigFile(customPath, cwd);
-  if (!configFile) {
+  let configFile: string | null = null;
+  if (customPath) {
+    configFile = findConfigFile(customPath, cwd);
+  } else {
+    configFile = ensureConfigExists(cwd);
+  }
+
+  if (!configFile || !fs.existsSync(configFile)) {
     return structuredClone(DEFAULT_CONFIG);
   }
 

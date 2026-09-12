@@ -53,4 +53,11 @@ describe('Config and Profiles', () => {
     expect(sec?.read_only).toBe(true);
     expect(pat?.read_only).toBe(true);
   });
+
+  it('initializes configuration with profiles and config.yml', () => {
+    const { initConfiguration } = require('../src/config');
+    const res = initConfiguration({ targetEnv: 'gemini', linkBin: false });
+    expect(res.configPath).toContain('.gemini');
+    expect(require('fs').existsSync(res.configPath)).toBe(true);
+  });
 });

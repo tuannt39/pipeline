@@ -102,4 +102,49 @@ describe('Orca Client & WorkerSpawner', () => {
     expect(res.terminalHandle).toBe('term_fallback_456');
     expect(res.method).toBe('fallback-terminal');
   });
+
+  it('delivers prompt via terminal send during fallback spawn', async () => {
+    let terminalSendCalled = false;
+    const mockExec = async (cmd: string, args: string[]): Promise<ExecResult> => {
+      if (args.includes('worker-start')) {
+        return { stdout: '', stderr: 'error', exitCode: 1 };
+      }
+      if (args.includes('terminal') && args.includes('create')) {
+        return {
+          stdout: JSON.stringify({ ok: true, result: { terminal: { handle: 'term_123' } } }),
+          stderr: '',
+          exitCode: 0,
+        };
+      }
+      if (args.includes('dispatch')) {
+        expect(args).not.toContain('--inject');
+        return {
+          stdout: JSON.stringify({ ok: true, result: { dispatch: { id: 'disp_123' } } }),
+          stderr: '',
+          exitCode: 0,
+        };
+      }
+      if (args.includes('terminal') && args.includes('send')) {
+        terminalSendCalled = true;
+        expect(args).toContain('--terminal');
+        expect(args).toContain('term_123');
+        expect(args).toContain('--enter');
+        return { stdout: JSON.stringify({ ok: true }), stderr: '', exitCode: 0 };
+      }
+      throw new Error(`Unexpected command: ${args.join(' ')}`);
+    };
+
+    const client = new OrcaClient({ execFn: mockExec });
+    const spawner = new WorkerSpawner(client);
+
+    const res = await spawner.spawnWorker({
+      stage: { id: 'plan', role: 'planner' },
+      taskId: 'task_1',
+      runId: 'run_1',
+      prompt: 'Execute plan objective',
+    });
+
+    expect(res.dispatchId).toBe('disp_123');
+    expect(terminalSendCalled).toBe(true);
+  });
 });

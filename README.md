@@ -74,7 +74,9 @@ Instead of running an ad-hoc custom scheduler or managing processes manually, th
 
 ## Configuration
 
-Central configuration is stored at `~/.omp/pipeline/config.yml`:
+Configuration is automatically initialized on first run or by running `pipeline init`.
+- **For Antigravity (AGY)**: `~/.gemini/config/pipeline/config.yml`
+- **For Oh-My-Pi (OMP)**: `~/.omp/pipeline/config.yml`
 
 ```yaml
 version: 1
@@ -88,12 +90,12 @@ workspace:
 
 defaults:
   profile: standard
-  agent: omp
+  agent: auto # auto-detects 'agy' or 'omp'
   timeout_ms: 3600000
   max_retries: 2
 
 artifacts:
-  root: .omp/pipelines
+  root: .agents/pipelines # (.omp/pipelines for OMP)
 
 policies:
   require_plan_before_implementation: true
@@ -104,10 +106,19 @@ policies:
   max_pipeline_retries: 1
 
 profiles:
-  simple: ~/.omp/pipeline/profiles/simple.yml
-  standard: ~/.omp/pipeline/profiles/standard.yml
-  secure: ~/.omp/pipeline/profiles/secure.yml
-  full: ~/.omp/pipeline/profiles/full.yml
+  simple: ~/.gemini/config/pipeline/profiles/simple.yml
+  standard: ~/.gemini/config/pipeline/profiles/standard.yml
+  secure: ~/.gemini/config/pipeline/profiles/secure.yml
+  full: ~/.gemini/config/pipeline/profiles/full.yml
+```
+
+Run `pipeline init` anytime to scaffold configuration, copy default profiles, and link the global CLI binary:
+```bash
+# Initialize for Antigravity
+pipeline init --gemini
+
+# Initialize for OMP
+pipeline init --omp
 ```
 
 ---

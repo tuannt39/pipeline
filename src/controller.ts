@@ -216,19 +216,26 @@ export class PipelineController {
         worktree: state.workspace.mode,
         title: `${state.id}-${stage.id}`,
         defaultAgent: this.config.defaults.agent,
+        prompt,
       });
       dispatchId = spawnRes.dispatchId;
       terminalHandle = spawnRes.terminalHandle;
-    } catch (err: any) {
-      console.warn(`[pipeline-controller] spawnWorker failed:`, err.message);
-    }
 
-    updateStageState(state, stage.id, {
-      status: 'running',
-      taskId,
-      dispatchId,
-      startTime: new Date().toISOString(),
-    });
+      updateStageState(state, stage.id, {
+        status: 'running',
+        taskId,
+        dispatchId,
+        startTime: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error(`[pipeline-controller] spawnWorker failed for stage "${stage.id}":`, err.message);
+      updateStageState(state, stage.id, {
+        status: 'failed',
+        taskId,
+        error: `Spawn failed: ${err.message}`,
+        endTime: new Date().toISOString(),
+      });
+    }
 
     saveState(pipelineDir, state);
   }
