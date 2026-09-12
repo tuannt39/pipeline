@@ -175,10 +175,12 @@ export class OrcaClient {
     worktree?: string;
     title?: string;
     command?: string;
+    focus?: boolean;
   }): Promise<{ handle: string }> {
     const args = ['terminal', 'create', '--worktree', options.worktree || 'active', '--json'];
     if (options.title) args.push('--title', options.title);
     if (options.command) args.push('--command', options.command);
+    if (options.focus !== false) args.push('--focus');
 
     const res = await this.execFn(this.bin, args, { cwd: this.cwd });
     if (res.exitCode !== 0) {
@@ -189,6 +191,12 @@ export class OrcaClient {
     const handle = data.terminal?.handle || data.handle;
     if (!handle) throw new Error(`terminal create missing handle: ${res.stdout}`);
     return { handle };
+  }
+
+  async terminalSwitch(options: { terminal: string }): Promise<{ ok: boolean }> {
+    const args = ['terminal', 'switch', '--terminal', options.terminal, '--json'];
+    const res = await this.execFn(this.bin, args, { cwd: this.cwd });
+    return { ok: res.exitCode === 0 };
   }
 
   async dispatch(options: {

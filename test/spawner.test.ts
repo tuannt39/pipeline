@@ -17,18 +17,35 @@ describe('WorkerSpawner & Command Resolution', () => {
 
   it('maps all standard specialist roles to specialized Antigravity subagents', () => {
     const roles = [
-      { role: 'architect', expected: 'architect-reviewer' },
-      { role: 'security', expected: 'security-auditor' },
-      { role: 'coder', expected: 'fullstack-developer' },
-      { role: 'tester', expected: 'test-automator' },
-      { role: 'reviewer', expected: 'code-reviewer' },
+      { role: 'planner', expected: 'workflow-orchestrator', mode: 'plan' },
+      { role: 'architect', expected: 'architect-reviewer', mode: 'plan' },
+      { role: 'security', expected: 'security-auditor', mode: 'plan' },
+      { role: 'coder', expected: 'fullstack-developer', mode: 'accept-edits' },
+      { role: 'tester', expected: 'test-automator', mode: 'plan' },
+      { role: 'reviewer', expected: 'code-reviewer', mode: 'plan' },
     ];
 
-    for (const { role, expected } of roles) {
+    for (const { role, expected, mode } of roles) {
       const stage: StageDefinition = { id: role, role, agent: 'agy' };
       const cmd = resolveWorkerCommand(stage);
-      expect(cmd).toBe(`agy --agent ${expected} --dangerously-skip-permissions`);
+      expect(cmd).toBe(`agy --agent ${expected} --mode ${mode} --dangerously-skip-permissions`);
     }
+  });
+
+  it('includes taskFile parameter with /plan for analytical stages and /goal for implementer stages', () => {
+    const stagePlan: StageDefinition = { id: 'plan', role: 'planner', agent: 'agy' };
+    const cmdPlan = resolveWorkerCommand(stagePlan, 'agy', '/tmp/task-plan.md');
+    expect(cmdPlan).toContain('--mode plan');
+    expect(cmdPlan).toContain('-i "/plan Execute task specifications in /tmp/task-plan.md"');
+
+    const stageCoder: StageDefinition = { id: 'implement', role: 'coder', agent: 'agy' };
+    const cmdCoder = resolveWorkerCommand(stageCoder, 'agy', '/tmp/task-coder.md');
+    expect(cmdCoder).toContain('--mode accept-edits');
+    expect(cmdCoder).toContain('-i "/goal Execute task specifications in /tmp/task-coder.md"');
+
+    const stageOmp: StageDefinition = { id: 'plan', role: 'planner', agent: 'omp' };
+    const cmdOmp = resolveWorkerCommand(stageOmp, 'omp', '/tmp/task-plan.md');
+    expect(cmdOmp).toContain('"Execute task specifications in /tmp/task-plan.md"');
   });
 
   it('honors explicit subagent override, model, and custom flags', () => {

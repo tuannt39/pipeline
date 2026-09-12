@@ -193,6 +193,9 @@ export class PipelineController {
       fixIteration: state.fixLoops,
     });
 
+    const taskFile = path.join(pipelineDir, `task-${stage.id}.md`);
+    writeArtifact(pipelineDir, `task-${stage.id}.md`, prompt);
+
     let taskId = `task-${stage.id}-${Date.now()}`;
     try {
       const taskRes = await this.orca.taskCreate({
@@ -214,9 +217,11 @@ export class PipelineController {
         taskId,
         runId,
         worktree: state.workspace.mode,
-        title: `${state.id}-${stage.id}`,
+        title: `[Pipeline] ${stage.id.toUpperCase()} (${stage.role})`,
         defaultAgent: this.config.defaults.agent,
         prompt,
+        taskFile,
+        focus: true,
       });
       dispatchId = spawnRes.dispatchId;
       terminalHandle = spawnRes.terminalHandle;

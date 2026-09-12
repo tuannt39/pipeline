@@ -15,6 +15,16 @@ Activate this skill when:
 - Work benefits from parallel specialist analysis (`architect`, `security`, `pattern`).
 - Independent verification and an autonomous fix loop (`implement` -> `test` -> `review` -> `fix`) are required.
 
+## Instructions for the Agent
+
+When the user asks to start or run a pipeline (or invokes `/pipeline <objective>`):
+1. **Immediately execute the pipeline** in the background using `run_command`:
+   ```bash
+   pipeline start [--profile <profile>] "<objective>"
+   ```
+2. Running this command creates an Orca orchestration run and automatically opens and focuses a new dedicated worker tab in the Orca Desktop interface.
+3. Inform the user of the Pipeline ID and that the dedicated worker tab has been opened in Orca.
+
 ## Available Profiles
 
 | Profile | Stages | Recommended For |

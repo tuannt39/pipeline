@@ -73,8 +73,17 @@ describe('Orca Client & WorkerSpawner', () => {
         };
       }
       if (args.includes('terminal') && args.includes('create')) {
+        expect(args).toContain('--focus');
         return {
           stdout: JSON.stringify({ ok: true, result: { terminal: { handle: 'term_fallback_456' } } }),
+          stderr: '',
+          exitCode: 0,
+        };
+      }
+      if (args.includes('terminal') && args.includes('switch')) {
+        expect(args).toContain('term_fallback_456');
+        return {
+          stdout: JSON.stringify({ ok: true }),
           stderr: '',
           exitCode: 0,
         };
@@ -105,16 +114,23 @@ describe('Orca Client & WorkerSpawner', () => {
 
   it('delivers prompt via terminal send during fallback spawn', async () => {
     let terminalSendCalled = false;
+    let terminalSwitchCalled = false;
     const mockExec = async (cmd: string, args: string[]): Promise<ExecResult> => {
       if (args.includes('worker-start')) {
         return { stdout: '', stderr: 'error', exitCode: 1 };
       }
       if (args.includes('terminal') && args.includes('create')) {
+        expect(args).toContain('--focus');
         return {
           stdout: JSON.stringify({ ok: true, result: { terminal: { handle: 'term_123' } } }),
           stderr: '',
           exitCode: 0,
         };
+      }
+      if (args.includes('terminal') && args.includes('switch')) {
+        terminalSwitchCalled = true;
+        expect(args).toContain('term_123');
+        return { stdout: JSON.stringify({ ok: true }), stderr: '', exitCode: 0 };
       }
       if (args.includes('dispatch')) {
         expect(args).not.toContain('--inject');

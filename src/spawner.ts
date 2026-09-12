@@ -3,9 +3,16 @@ import { StageDefinition } from './types';
 import { detectDefaultAgent } from './config';
 
 export const ROLE_TO_AGY_SUBAGENT: Record<string, string> = {
+  planner: 'workflow-orchestrator',
+  plan: 'workflow-orchestrator',
+  'spec-writer': 'technical-writer',
+  spec: 'technical-writer',
   architect: 'architect-reviewer',
+  architecture: 'architect-reviewer',
   security: 'security-auditor',
   'security-review': 'security-auditor',
+  pattern: 'architect-reviewer',
+  'design-pattern': 'architect-reviewer',
   tester: 'test-automator',
   qa: 'test-automator',
   reviewer: 'code-reviewer',
@@ -15,18 +22,42 @@ export const ROLE_TO_AGY_SUBAGENT: Record<string, string> = {
   developer: 'fullstack-developer',
 };
 
-export function resolveWorkerCommand(stage: StageDefinition, defaultAgent: string = 'auto'): string {
+export function isImplementationStage(stage: StageDefinition): boolean {
+  const role = stage.role?.toLowerCase() || '';
+  const id = stage.id?.toLowerCase() || '';
+  return (
+    stage.mode === 'goal' ||
+    role === 'coder' ||
+    role === 'fixer' ||
+    role === 'developer' ||
+    id === 'implement' ||
+    id === 'fix'
+  );
+}
+
+export function resolveWorkerCommand(
+  stage: StageDefinition,
+  defaultAgent: string = 'auto',
+  taskFile?: string
+): string {
   let agentType = stage.agent && stage.agent !== 'auto' ? stage.agent : defaultAgent;
   if (!agentType || agentType === 'auto') {
     agentType = detectDefaultAgent();
   }
 
+  const isImpl = isImplementationStage(stage);
+  const slashCommand = isImpl ? '/goal' : '/plan';
+
   // If stage.agent already contains custom invocation/flags
   if (stage.agent && stage.agent.includes(' ')) {
-    if (stage.agent.startsWith('agy') && !stage.agent.includes('--dangerously-skip-permissions')) {
-      return `${stage.agent} --dangerously-skip-permissions`;
+    let cmd = stage.agent;
+    if (cmd.startsWith('agy') && !cmd.includes('--dangerously-skip-permissions')) {
+      cmd = `${cmd} --dangerously-skip-permissions`;
     }
-    return stage.agent;
+    if (taskFile && cmd.startsWith('agy') && !cmd.includes('-i') && !cmd.includes('--prompt')) {
+      cmd = `${cmd} -i "${slashCommand} Execute task specifications in ${taskFile}"`;
+    }
+    return cmd;
   }
 
   if (agentType === 'agy') {
@@ -38,21 +69,36 @@ export function resolveWorkerCommand(stage: StageDefinition, defaultAgent: strin
     if (stage.model) {
       parts.push('--model', stage.model);
     }
+
+    // Set mode for agy: accept-edits for implementer, plan for other analytical/review stages
+    const hasExplicitModeFlag = stage.flags && stage.flags.includes('--mode');
+    if (!hasExplicitModeFlag) {
+      const modeValue = isImpl ? 'accept-edits' : 'plan';
+      parts.push('--mode', modeValue);
+    }
+
     if (stage.flags && stage.flags.length > 0) {
       parts.push(...stage.flags);
     }
     if (!parts.includes('--dangerously-skip-permissions')) {
       parts.push('--dangerously-skip-permissions');
     }
+    if (taskFile) {
+      parts.push('-i', `"${slashCommand} Execute task specifications in ${taskFile}"`);
+    }
     return parts.join(' ');
   }
 
   // omp or other CLI
+  const parts: string[] = [agentType];
   if (stage.flags && stage.flags.length > 0) {
-    return [agentType, ...stage.flags].join(' ');
+    parts.push(...stage.flags);
+  }
+  if (taskFile) {
+    parts.push(`"Execute task specifications in ${taskFile}"`);
   }
 
-  return agentType;
+  return parts.join(' ');
 }
 
 export interface SpawnResult {
@@ -76,9 +122,11 @@ export class WorkerSpawner {
     title?: string;
     defaultAgent?: string;
     prompt?: string;
+    taskFile?: string;
+    focus?: boolean;
   }): Promise<SpawnResult> {
-    const { stage, taskId, runId, worktree, title, defaultAgent, prompt } = options;
-    const agentCmd = resolveWorkerCommand(stage, defaultAgent);
+    const { stage, taskId, runId, worktree, title, defaultAgent, prompt, taskFile, focus } = options;
+    const agentCmd = resolveWorkerCommand(stage, defaultAgent, taskFile);
 
     // 1. Primary path: worker-start
     try {
@@ -101,13 +149,22 @@ export class WorkerSpawner {
       console.warn(`[worker-spawner] worker-start failed for stage "${stage.id}", falling back to terminal create + dispatch:`, err.message);
     }
 
-    // 2. Fallback path: terminal create + dispatch (without --inject) + terminalSend
+    // 2. Fallback path: terminal create + switch + dispatch (without --inject)
     try {
+      const termTitle = title || `[Pipeline] ${stage.id.toUpperCase()} (${stage.role})`;
       const termRes = await this.orca.terminalCreate({
         worktree: worktree || stage.worktree || 'active',
-        title: title || `${agentCmd.split(' ')[0]}-${stage.id}`,
+        title: termTitle,
         command: agentCmd,
+        focus: focus !== false,
       });
+
+      // Switch to the terminal to ensure it is visible as a new focused tab in Orca UI
+      try {
+        await this.orca.terminalSwitch({ terminal: termRes.handle });
+      } catch (switchErr: any) {
+        console.warn(`[worker-spawner] terminalSwitch failed:`, switchErr.message);
+      }
 
       const dispatchRes = await this.orca.dispatch({
         taskId,
@@ -116,8 +173,8 @@ export class WorkerSpawner {
         runId,
       });
 
-      if (prompt && termRes.handle) {
-        // Allow the TUI agent a moment to initialize its input listener
+      // Deliver prompt via terminalSend only if taskFile wasn't used in command
+      if (!taskFile && prompt && termRes.handle) {
         await new Promise((r) => setTimeout(r, 1000));
         try {
           await this.orca.terminalSend({
