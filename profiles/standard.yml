@@ -4,7 +4,7 @@ description: Standard workflow (plan -> implement -> test -> review with fix loo
 stages:
   - id: plan
     role: planner
-    agent: omp
+    agent: auto
     worktree: active
     mode: analysis
     read_only: true
@@ -15,7 +15,7 @@ stages:
 
   - id: implement
     role: coder
-    agent: omp
+    agent: auto
     worktree: active
     mode: goal
     inputs:
@@ -27,7 +27,7 @@ stages:
 
   - id: test
     role: tester
-    agent: omp
+    agent: auto
     worktree: active
     mode: verify
     inputs:
@@ -40,7 +40,7 @@ stages:
 
   - id: review
     role: reviewer
-    agent: omp
+    agent: auto
     worktree: active
     mode: review
     inputs:

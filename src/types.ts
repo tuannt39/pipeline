@@ -18,6 +18,10 @@ export interface StageDefinition {
   id: string;
   role: string;
   agent?: string;
+  subagent?: string;
+  model?: string;
+  effort?: 'low' | 'medium' | 'high';
+  flags?: string[];
   worktree?: 'active' | 'new' | string;
   mode?: 'analysis' | 'goal' | 'verify' | 'review' | string;
   read_only?: boolean;

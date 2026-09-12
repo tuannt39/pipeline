@@ -4,7 +4,7 @@ description: Full enterprise specification, architecture, security, pattern, ver
 stages:
   - id: spec
     role: spec-writer
-    agent: omp
+    agent: auto
     worktree: active
     read_only: true
     outputs:
@@ -16,7 +16,7 @@ stages:
 
   - id: architecture
     role: architect
-    agent: omp
+    agent: auto
     worktree: active
     read_only: true
     inputs:
@@ -30,7 +30,7 @@ stages:
 
   - id: security
     role: security
-    agent: omp
+    agent: auto
     worktree: active
     read_only: true
     inputs:
@@ -44,7 +44,7 @@ stages:
 
   - id: pattern
     role: design-pattern
-    agent: omp
+    agent: auto
     worktree: active
     read_only: true
     inputs:
@@ -58,7 +58,7 @@ stages:
 
   - id: plan
     role: planner
-    agent: omp
+    agent: auto
     worktree: active
     mode: analysis
     read_only: true
@@ -78,7 +78,7 @@ stages:
 
   - id: implement
     role: coder
-    agent: omp
+    agent: auto
     worktree: active
     mode: goal
     inputs:
@@ -96,7 +96,7 @@ stages:
 
   - id: test
     role: tester
-    agent: omp
+    agent: auto
     worktree: active
     mode: verify
     inputs:
@@ -110,7 +110,7 @@ stages:
 
   - id: security-2
     role: security-review
-    agent: omp
+    agent: auto
     worktree: active
     read_only: true
     inputs:
@@ -127,7 +127,7 @@ stages:
 
   - id: review
     role: reviewer
-    agent: omp
+    agent: auto
     worktree: active
     mode: review
     inputs:

@@ -215,6 +215,7 @@ export class PipelineController {
         runId,
         worktree: state.workspace.mode,
         title: `${state.id}-${stage.id}`,
+        defaultAgent: this.config.defaults.agent,
       });
       dispatchId = spawnRes.dispatchId;
       terminalHandle = spawnRes.terminalHandle;

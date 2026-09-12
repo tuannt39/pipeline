@@ -77,6 +77,11 @@ export default function (pi: any): void {
         } catch {
           checks.push(`✗ Orca CLI: Not found in PATH (orca)`);
         }
+        const { hasCommand, detectDefaultAgent } = require('./config');
+        checks.push(`✔ Antigravity (agy): ${hasCommand('agy') ? 'Found' : 'Not installed'}`);
+        checks.push(`✔ Oh-My-Pi (omp): ${hasCommand('omp') ? 'Found' : 'Not installed'}`);
+        const activeAgent = detectDefaultAgent();
+        checks.push(`✔ Resolved Agent Harness: ${activeAgent.toUpperCase()}`);
         const cfg = loadConfig(undefined, cwd);
         checks.push(`✔ Config: profile=${cfg.defaults.profile}, agent=${cfg.defaults.agent}`);
         const { BUILTIN_PROFILES } = require('./profiles');

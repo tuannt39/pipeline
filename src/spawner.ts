@@ -1,5 +1,59 @@
 import { OrcaClient } from './orca';
 import { StageDefinition } from './types';
+import { detectDefaultAgent } from './config';
+
+export const ROLE_TO_AGY_SUBAGENT: Record<string, string> = {
+  architect: 'architect-reviewer',
+  security: 'security-auditor',
+  'security-review': 'security-auditor',
+  tester: 'test-automator',
+  qa: 'test-automator',
+  reviewer: 'code-reviewer',
+  review: 'code-reviewer',
+  coder: 'fullstack-developer',
+  fixer: 'fullstack-developer',
+  developer: 'fullstack-developer',
+};
+
+export function resolveWorkerCommand(stage: StageDefinition, defaultAgent: string = 'auto'): string {
+  let agentType = stage.agent && stage.agent !== 'auto' ? stage.agent : defaultAgent;
+  if (!agentType || agentType === 'auto') {
+    agentType = detectDefaultAgent();
+  }
+
+  // If stage.agent already contains custom invocation/flags
+  if (stage.agent && stage.agent.includes(' ')) {
+    if (stage.agent.startsWith('agy') && !stage.agent.includes('--dangerously-skip-permissions')) {
+      return `${stage.agent} --dangerously-skip-permissions`;
+    }
+    return stage.agent;
+  }
+
+  if (agentType === 'agy') {
+    const parts: string[] = ['agy'];
+    const subagent = stage.subagent || ROLE_TO_AGY_SUBAGENT[stage.role];
+    if (subagent) {
+      parts.push('--agent', subagent);
+    }
+    if (stage.model) {
+      parts.push('--model', stage.model);
+    }
+    if (stage.flags && stage.flags.length > 0) {
+      parts.push(...stage.flags);
+    }
+    if (!parts.includes('--dangerously-skip-permissions')) {
+      parts.push('--dangerously-skip-permissions');
+    }
+    return parts.join(' ');
+  }
+
+  // omp or other CLI
+  if (stage.flags && stage.flags.length > 0) {
+    return [agentType, ...stage.flags].join(' ');
+  }
+
+  return agentType;
+}
 
 export interface SpawnResult {
   dispatchId: string;
@@ -20,9 +74,10 @@ export class WorkerSpawner {
     runId: string;
     worktree?: string;
     title?: string;
+    defaultAgent?: string;
   }): Promise<SpawnResult> {
-    const { stage, taskId, runId, worktree, title } = options;
-    const agentCmd = stage.agent || 'omp';
+    const { stage, taskId, runId, worktree, title, defaultAgent } = options;
+    const agentCmd = resolveWorkerCommand(stage, defaultAgent);
 
     // 1. Primary path: worker-start
     try {
@@ -49,7 +104,7 @@ export class WorkerSpawner {
     try {
       const termRes = await this.orca.terminalCreate({
         worktree: worktree || stage.worktree || 'active',
-        title: title || `omp-${stage.id}`,
+        title: title || `${agentCmd.split(' ')[0]}-${stage.id}`,
         command: agentCmd,
       });
 

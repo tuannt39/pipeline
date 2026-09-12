@@ -2,7 +2,25 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import yaml from 'yaml';
+import { execSync } from 'child_process';
 import { PipelineConfig } from './types';
+
+export function hasCommand(cmd: string): boolean {
+  try {
+    execSync(`which ${cmd}`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function detectDefaultAgent(): 'agy' | 'omp' {
+  if (process.env.ANTIGRAVITY_AGENT === '1') return 'agy';
+  if (process.env.OMP_WORKTREE_DIR) return 'omp';
+  if (hasCommand('agy')) return 'agy';
+  if (hasCommand('omp')) return 'omp';
+  return 'agy';
+}
 
 export const DEFAULT_CONFIG: PipelineConfig = {
   version: 1,
@@ -15,7 +33,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   },
   defaults: {
     profile: 'standard',
-    agent: 'omp',
+    agent: 'auto',
     timeout_ms: 3600000,
     max_retries: 2,
   },
@@ -52,8 +70,13 @@ export function findConfigFile(customPath?: string, cwd: string = process.cwd())
   }
 
   const candidates = [
+    path.join(cwd, '.pipeline', 'config.yml'),
+    path.join(cwd, '.pipeline', 'config.yaml'),
+    path.join(cwd, '.agents', 'pipeline', 'config.yml'),
     path.join(cwd, '.omp', 'pipeline', 'config.yml'),
     path.join(cwd, '.omp', 'pipeline', 'config.yaml'),
+    path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml'),
+    path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yaml'),
     path.join(os.homedir(), '.omp', 'pipeline', 'config.yml'),
     path.join(os.homedir(), '.omp', 'pipeline', 'config.yaml'),
   ];

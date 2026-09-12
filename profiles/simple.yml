@@ -4,7 +4,7 @@ description: Fast path for simple changes (implement -> test -> review)
 stages:
   - id: implement
     role: coder
-    agent: omp
+    agent: auto
     worktree: active
     mode: goal
     outputs:
@@ -14,7 +14,7 @@ stages:
 
   - id: test
     role: tester
-    agent: omp
+    agent: auto
     worktree: active
     mode: verify
     inputs:
@@ -26,7 +26,7 @@ stages:
 
   - id: review
     role: reviewer
-    agent: omp
+    agent: auto
     worktree: active
     mode: review
     inputs:

@@ -50,8 +50,22 @@ bun run bin/pipeline.ts stop <pipeline-id>
 bun run bin/pipeline.ts doctor
 ```
 
+## Dual-Harness Execution (Antigravity & OMP)
+
+The pipeline orchestrator is dual-harness native:
+- **Google Antigravity (`agy`)**: When running in Antigravity or when `agy` is available, stages automatically dispatch to specialized built-in Antigravity subagents:
+  - `architect` → `architect-reviewer`
+  - `security` / `security-review` → `security-auditor`
+  - `coder` / `fixer` → `fullstack-developer`
+  - `tester` → `test-automator`
+  - `reviewer` → `code-reviewer`
+  Headless worker stages automatically include `--dangerously-skip-permissions` to ensure continuous autonomous execution without hanging on user confirmation dialogs.
+- **Oh-My-Pi (`omp`)**: When running in OMP, stages seamlessly dispatch workers to the `omp` interactive CLI harness.
+- **Auto-Detection**: Configured default `agent: auto` automatically detects the active environment or available CLI (`agy` prioritized if inside Antigravity).
+
 ## Role Permissions & Artifact Contracts
 
 - **Read-Only Specialists**: Stages with roles `planner`, `architect`, `security`, `pattern`, `reviewer`, `security-review` have `read_only: true` enforced. They inspect the codebase and write structured markdown artifacts (`plan.md`, `architecture.md`, `security-plan.md`, `pattern.md`, `review.md`), but cannot modify source code.
 - **Implementers**: Only `coder` and `fixer` roles are permitted to modify source code and files.
-- **Artifact Directory**: All stage outputs and contracts are stored in `.omp/pipelines/<pipeline-id>/`.
+- **Artifact Directory**: All stage outputs and contracts are stored in `.omp/pipelines/<pipeline-id>/` (or configured `artifacts.root`).
+

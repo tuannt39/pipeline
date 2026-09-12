@@ -4,7 +4,7 @@ description: Secure workflow with parallel architect, security, and pattern spec
 stages:
   - id: plan
     role: planner
-    agent: omp
+    agent: auto
     worktree: active
     mode: analysis
     read_only: true
@@ -17,7 +17,7 @@ stages:
 
   - id: architecture
     role: architect
-    agent: omp
+    agent: auto
     worktree: active
     read_only: true
     inputs:
@@ -31,7 +31,7 @@ stages:
 
   - id: security
     role: security
-    agent: omp
+    agent: auto
     worktree: active
     read_only: true
     inputs:
@@ -45,7 +45,7 @@ stages:
 
   - id: pattern
     role: design-pattern
-    agent: omp
+    agent: auto
     worktree: active
     read_only: true
     inputs:
@@ -59,7 +59,7 @@ stages:
 
   - id: implement
     role: coder
-    agent: omp
+    agent: auto
     worktree: active
     mode: goal
     inputs:
@@ -78,7 +78,7 @@ stages:
 
   - id: test
     role: tester
-    agent: omp
+    agent: auto
     worktree: active
     mode: verify
     inputs:
@@ -91,7 +91,7 @@ stages:
 
   - id: review
     role: reviewer
-    agent: omp
+    agent: auto
     worktree: active
     mode: review
     inputs:
@@ -106,7 +106,7 @@ stages:
 
   - id: final-security
     role: security-review
-    agent: omp
+    agent: auto
     worktree: active
     read_only: true
     inputs:

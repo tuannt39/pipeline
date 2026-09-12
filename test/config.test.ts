@@ -9,10 +9,20 @@ describe('Config and Profiles', () => {
     expect(config.orca.command).toBe('orca');
     expect(config.workspace.default).toBe('active');
     expect(config.defaults.profile).toBe('standard');
+    expect(config.defaults.agent).toBe('auto');
     expect(config.policies.max_fix_loops).toBe(3);
   });
 
-  it('loads all builtin profiles', () => {
+  it('detects default agent harness based on environment or availability', () => {
+    const { detectDefaultAgent, hasCommand } = require('../src/config');
+    const detected = detectDefaultAgent();
+    expect(['agy', 'omp']).toContain(detected);
+    expect(typeof hasCommand('bun')).toBe('boolean');
+    expect(hasCommand('bun')).toBe(true);
+    expect(hasCommand('non_existent_binary_xyz123')).toBe(false);
+  });
+
+  it('loads all builtin profiles with auto agent defaults', () => {
     const config = structuredClone(DEFAULT_CONFIG);
     const profiles = ['simple', 'standard', 'secure', 'full'];
 
@@ -20,6 +30,9 @@ describe('Config and Profiles', () => {
       const profile = loadProfile(name, config);
       expect(profile.name).toBe(name);
       expect(profile.stages.length).toBeGreaterThan(0);
+      for (const stage of profile.stages) {
+        expect(stage.agent).toBe('auto');
+      }
     }
   });
 

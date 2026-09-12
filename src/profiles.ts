@@ -15,7 +15,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'implement',
         role: 'coder',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'goal',
         outputs: ['implementation.md'],
@@ -24,7 +24,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'test',
         role: 'tester',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'verify',
         inputs: ['implementation.md'],
@@ -34,7 +34,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'review',
         role: 'reviewer',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'review',
         inputs: ['implementation.md', 'test.md'],
@@ -53,7 +53,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'plan',
         role: 'planner',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'analysis',
         read_only: true,
@@ -63,7 +63,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'implement',
         role: 'coder',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'goal',
         inputs: ['plan.md'],
@@ -73,7 +73,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'test',
         role: 'tester',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'verify',
         inputs: ['plan.md', 'implementation.md'],
@@ -83,7 +83,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'review',
         role: 'reviewer',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'review',
         inputs: ['plan.md', 'implementation.md', 'test.md'],
@@ -102,7 +102,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'plan',
         role: 'planner',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'analysis',
         read_only: true,
@@ -112,7 +112,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'architecture',
         role: 'architect',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         read_only: true,
         inputs: ['plan.md'],
@@ -123,7 +123,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'security',
         role: 'security',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         read_only: true,
         inputs: ['plan.md'],
@@ -134,7 +134,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'pattern',
         role: 'design-pattern',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         read_only: true,
         inputs: ['plan.md'],
@@ -145,7 +145,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'implement',
         role: 'coder',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'goal',
         inputs: ['plan.md', 'architecture.md', 'security-plan.md', 'pattern.md'],
@@ -156,7 +156,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'test',
         role: 'tester',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'verify',
         inputs: ['plan.md', 'implementation.md'],
@@ -166,7 +166,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'review',
         role: 'reviewer',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'review',
         inputs: ['plan.md', 'implementation.md', 'test.md'],
@@ -179,7 +179,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'final-security',
         role: 'security-review',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         read_only: true,
         inputs: ['plan.md', 'security-plan.md', 'implementation.md', 'review.md'],
@@ -199,7 +199,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'spec',
         role: 'spec-writer',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         read_only: true,
         outputs: ['spec.md'],
@@ -208,7 +208,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'architecture',
         role: 'architect',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         read_only: true,
         inputs: ['spec.md'],
@@ -219,7 +219,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'security',
         role: 'security',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         read_only: true,
         inputs: ['spec.md'],
@@ -230,7 +230,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'pattern',
         role: 'design-pattern',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         read_only: true,
         inputs: ['spec.md'],
@@ -241,7 +241,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'plan',
         role: 'planner',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'analysis',
         read_only: true,
@@ -253,7 +253,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'implement',
         role: 'coder',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'goal',
         inputs: ['spec.md', 'plan.md', 'architecture.md', 'security-plan.md', 'pattern.md'],
@@ -264,7 +264,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'test',
         role: 'tester',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'verify',
         inputs: ['spec.md', 'plan.md', 'implementation.md'],
@@ -274,7 +274,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'security-2',
         role: 'security-review',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         read_only: true,
         inputs: ['spec.md', 'security-plan.md', 'implementation.md', 'test.md'],
@@ -285,7 +285,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
       {
         id: 'review',
         role: 'reviewer',
-        agent: 'omp',
+        agent: 'auto',
         worktree: 'active',
         mode: 'review',
         inputs: ['spec.md', 'plan.md', 'implementation.md', 'test.md', 'security-review.md'],
@@ -308,10 +308,16 @@ export function resolveProfilePath(profileName: string, config: PipelineConfig, 
     candidates.push(path.resolve(PACKAGE_ROOT, resolveHome(profileConfigPath)));
   }
 
-  candidates.push(path.join(os.homedir(), '.omp', 'pipeline', 'profiles', `${profileName}.yml`));
-  candidates.push(path.join(os.homedir(), '.omp', 'pipeline', 'profiles', `${profileName}.yaml`));
+  candidates.push(path.join(cwd, '.pipeline', 'profiles', `${profileName}.yml`));
+  candidates.push(path.join(cwd, '.pipeline', 'profiles', `${profileName}.yaml`));
+  candidates.push(path.join(cwd, '.agents', 'pipeline', 'profiles', `${profileName}.yml`));
+  candidates.push(path.join(cwd, '.agents', 'pipeline', 'profiles', `${profileName}.yaml`));
   candidates.push(path.join(cwd, '.omp', 'pipeline', 'profiles', `${profileName}.yml`));
   candidates.push(path.join(cwd, '.omp', 'pipeline', 'profiles', `${profileName}.yaml`));
+  candidates.push(path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'profiles', `${profileName}.yml`));
+  candidates.push(path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'profiles', `${profileName}.yaml`));
+  candidates.push(path.join(os.homedir(), '.omp', 'pipeline', 'profiles', `${profileName}.yml`));
+  candidates.push(path.join(os.homedir(), '.omp', 'pipeline', 'profiles', `${profileName}.yaml`));
   candidates.push(path.join(PACKAGE_ROOT, 'profiles', `${profileName}.yml`));
   candidates.push(path.join(PACKAGE_ROOT, 'profiles', `${profileName}.yaml`));
 

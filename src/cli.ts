@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import { loadConfig } from './config';
+import { findConfigFile, hasCommand, detectDefaultAgent, loadConfig } from './config';
 import { PipelineController } from './controller';
 import { getPipelineDir, listPipelines, loadState, saveState } from './state';
 import { PipelineState } from './types';
@@ -47,6 +47,22 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
   const config = loadConfig(undefined, cwd);
 
   switch (command) {
+    case 'doctor': {
+      const activeAgent = detectDefaultAgent();
+      const hasOrca = hasCommand(config.orca.command);
+      const hasAgy = hasCommand('agy');
+      const hasOmp = hasCommand('omp');
+
+      console.log('Pipeline Orchestrator Doctor:');
+      console.log('------------------------------------------------------------');
+      console.log(`Orca CLI (${config.orca.command}):      ${hasOrca ? '✓ Found' : '✗ Not found (orca CLI needed for task orchestration)'}`);
+      console.log(`Antigravity CLI (agy): ${hasAgy ? '✓ Found' : '○ Not installed'}`);
+      console.log(`Oh-My-Pi CLI (omp):    ${hasOmp ? '✓ Found' : '○ Not installed'}`);
+      console.log(`Active Harness Agent:  ${activeAgent.toUpperCase()} (configured default: ${config.defaults.agent})`);
+      console.log(`Config File:           ${findConfigFile(undefined, cwd) || 'Using defaults'}`);
+      console.log(`Artifacts Root:        ${config.artifacts.root}`);
+      break;
+    }
     case 'start': {
       let profileName = config.defaults.profile;
       let worktree = config.workspace.default;
@@ -172,9 +188,10 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
 
 function printHelp(): void {
   console.log(`
-OMP Pipeline Orchestrator (powered by Orca native orchestration)
+Pipeline Orchestrator (Antigravity & OMP, powered by Orca native orchestration)
 
 USAGE:
+  pipeline doctor
   pipeline start [--profile <profile>] [--worktree <worktree>] <objective>
   pipeline status [<id>]
   pipeline list
