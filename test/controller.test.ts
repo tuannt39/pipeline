@@ -212,7 +212,7 @@ describe('PipelineController and Fix Loop', () => {
     fs.utimesSync(planPath, pastTime, pastTime);
 
     // Call reconcileRunningStages
-    const changed = (controller as any).reconcileRunningStages(dir, profile, state);
+    const changed = await (controller as any).reconcileRunningStages(dir, profile, state);
 
     expect(changed).toBe(true);
     expect(state.stages.plan.status as string).toBe('completed');

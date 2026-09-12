@@ -143,7 +143,7 @@ export class PipelineController {
       state = loadState(pipelineDir);
 
       // Reconcile running stages against disk artifacts
-      const reconciled = this.reconcileRunningStages(pipelineDir, profile, state);
+      const reconciled = await this.reconcileRunningStages(pipelineDir, profile, state);
       if (reconciled) {
         state = loadState(pipelineDir);
         onUpdate?.(state);
@@ -274,12 +274,21 @@ export class PipelineController {
     return true;
   }
 
-  private reconcileRunningStages(
+  private async reconcileRunningStages(
     pipelineDir: string,
     profile: PipelineProfile,
     state: PipelineState
-  ): boolean {
+  ): Promise<boolean> {
     let changed = false;
+
+    // Fetch active terminals from Orca to verify liveness
+    let activeTerminals: Set<string> | null = null;
+    try {
+      const listRes = await this.orca.terminalList();
+      activeTerminals = new Set(listRes.terminals.filter((t) => t.connected).map((t) => t.handle));
+    } catch {
+      activeTerminals = null;
+    }
 
     for (const [stageId, stageState] of Object.entries(state.stages)) {
       if (stageState.status !== 'running') continue;
@@ -288,9 +297,7 @@ export class PipelineController {
       if (!stageDef) continue;
 
       const outputs = stageDef.outputs || [];
-      if (outputs.length === 0) continue;
-
-      let allOutputsPresent = true;
+      let allOutputsPresent = outputs.length > 0;
       let allFilesSettled = true;
       const now = Date.now();
       const stageStartMs = stageState.startTime ? new Date(stageState.startTime).getTime() : 0;
@@ -326,6 +333,32 @@ export class PipelineController {
         console.log(`[pipeline-controller] Stage "${stageId}" satisfied artifact contract (${outputs.join(', ')}). Advancing stage.`);
         this.completeStage(stageId, pipelineDir, profile, state, undefined, `Artifact contract satisfied (${outputs.join(', ')})`);
         changed = true;
+        continue;
+      }
+
+      // If outputs are not satisfied and worker terminal died
+      if (!allOutputsPresent && stageState.terminalHandle && activeTerminals) {
+        if (!activeTerminals.has(stageState.terminalHandle)) {
+          const currentRetries = stageState.retries || 0;
+          if (currentRetries < this.config.policies.max_stage_retries) {
+            console.warn(`[pipeline-controller] Worker terminal for stage "${stageId}" is no longer active. Retrying (${currentRetries + 1}/${this.config.policies.max_stage_retries})...`);
+            updateStageState(state, stageId, {
+              status: 'pending',
+              retries: currentRetries + 1,
+              error: 'Worker terminal closed prematurely',
+            });
+            saveState(pipelineDir, state);
+            changed = true;
+          } else {
+            updateStageState(state, stageId, {
+              status: 'failed',
+              endTime: new Date().toISOString(),
+              error: `Stage worker terminal closed and exceeded max retries (${currentRetries})`,
+            });
+            saveState(pipelineDir, state);
+            changed = true;
+          }
+        }
       }
     }
 

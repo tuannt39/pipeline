@@ -199,6 +199,21 @@ export class OrcaClient {
     return { ok: res.exitCode === 0 };
   }
 
+  async terminalList(): Promise<{ terminals: Array<{ handle: string; connected: boolean }> }> {
+    const args = ['terminal', 'list', '--json'];
+    const res = await this.execFn(this.bin, args, { cwd: this.cwd });
+    if (res.exitCode !== 0) return { terminals: [] };
+    try {
+      const data = this.parseJsonOutput<{ terminals?: Array<{ handle: string; connected: boolean }> }>(
+        res.stdout,
+        'terminal list'
+      );
+      return { terminals: data.terminals || [] };
+    } catch {
+      return { terminals: [] };
+    }
+  }
+
   async dispatch(options: {
     taskId: string;
     toHandle: string;
