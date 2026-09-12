@@ -16,7 +16,8 @@ export interface PromptContext {
 export function buildWorkerCompletionSnippet(taskId: string, dispatchId: string, defaultSubject: string): string {
   return `
 WHEN FINISHED:
-You MUST notify the orchestrator by running this bash command:
+You MUST notify the orchestrator by running this bash command with your terminal/bash execution tool (do NOT merely print this in your markdown response):
+\`\`\`bash
 orca orchestration send \\
   --type worker_done \\
   --subject "${defaultSubject}" \\
@@ -25,8 +26,10 @@ orca orchestration send \\
   --dispatch-id "${dispatchId}" \\
   --outcome succeeded \\
   --json
+\`\`\`
 
 If you encountered an unrecoverable failure, report:
+\`\`\`bash
 orca orchestration send \\
   --type worker_done \\
   --subject "${defaultSubject} FAILED" \\
@@ -35,6 +38,7 @@ orca orchestration send \\
   --dispatch-id "${dispatchId}" \\
   --outcome failed \\
   --json
+\`\`\`
 `;
 }
 

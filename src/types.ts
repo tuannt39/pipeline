@@ -77,6 +77,7 @@ export interface StageState {
   status: StageStatus;
   taskId?: string;
   dispatchId?: string;
+  terminalHandle?: string;
   startTime?: string;
   endTime?: string;
   error?: string;

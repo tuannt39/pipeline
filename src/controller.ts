@@ -91,6 +91,28 @@ export class PipelineController {
     return this.runLoop(dir, runId, profile, options.onUpdate);
   }
 
+  async resumePipeline(
+    pipelineId: string,
+    onUpdate?: (state: PipelineState) => void
+  ): Promise<PipelineState> {
+    const pipelineDir = getPipelineDir(pipelineId, this.config.artifacts.root, this.cwd);
+    const state = loadState(pipelineDir);
+    const profile = loadProfile(state.profile, this.config, this.cwd);
+
+    let runId: string;
+    try {
+      const runRes = await this.orca.runCreate({
+        objective: `Pipeline [${pipelineId}] (resumed) - ${state.objective}`,
+      });
+      runId = runRes.id;
+    } catch (err: any) {
+      console.warn(`[pipeline-controller] orca run-create fallback to local ID:`, err.message);
+      runId = `run-${pipelineId}`;
+    }
+
+    return this.runLoop(pipelineDir, runId, profile, onUpdate);
+  }
+
   async runLoop(
     pipelineDir: string,
     runId: string,
@@ -107,6 +129,13 @@ export class PipelineController {
 
     while (iteration++ < maxLoops) {
       state = loadState(pipelineDir);
+
+      // Reconcile running stages against disk artifacts
+      const reconciled = this.reconcileRunningStages(pipelineDir, profile, state);
+      if (reconciled) {
+        state = loadState(pipelineDir);
+        onUpdate?.(state);
+      }
 
       const checkFinished = isPipelineFinished(state, profile);
       if (checkFinished.finished) {
@@ -146,7 +175,7 @@ export class PipelineController {
         const delivery = await this.orca.check({
           runId,
           wait: true,
-          timeoutMs: 15000,
+          timeoutMs: 3000,
           types: ['worker_done', 'escalation', 'question'],
         });
 
@@ -175,31 +204,131 @@ export class PipelineController {
     return state;
   }
 
+  private completeStage(
+    stageId: string,
+    pipelineDir: string,
+    profile: PipelineProfile,
+    state: PipelineState,
+    filesModified?: string[],
+    notes?: string
+  ): boolean {
+    const stageDef = profile.stages.find((s) => s.id === stageId);
+    if (!stageDef) return false;
+
+    // Special check for review stage
+    if (stageId === 'review') {
+      const reviewContent = readArtifact(pipelineDir, 'review.md') || '';
+      const isFail = /VERDICT:\s*FAIL/i.test(reviewContent);
+
+      if (isFail) {
+        if (state.fixLoops < this.config.policies.max_fix_loops) {
+          state.fixLoops += 1;
+          // Trigger fix loop: reset implement, test, and review to pending
+          updateStageState(state, stageId, {
+            status: 'pending',
+            notes: `Review failed (Loop #${state.fixLoops}). Scheduling fix.`,
+          });
+
+          if (state.stages['test']) {
+            updateStageState(state, 'test', { status: 'pending' });
+          }
+          if (state.stages['implement']) {
+            updateStageState(state, 'implement', { status: 'pending' });
+          }
+          saveState(pipelineDir, state);
+          return true;
+        } else {
+          // Exceeded max fix loops -> escalate
+          updateStageState(state, stageId, {
+            status: 'failed',
+            error: `Review failed after maximum fix loops (${state.fixLoops})`,
+          });
+          state.status = 'escalated';
+          saveState(pipelineDir, state);
+          return true;
+        }
+      }
+    }
+
+    // Standard stage success
+    updateStageState(state, stageId, {
+      status: 'completed',
+      endTime: new Date().toISOString(),
+      notes: notes || 'Stage completed',
+      modifiedFiles: filesModified ? String(filesModified).split(',') : undefined,
+    });
+    saveState(pipelineDir, state);
+    return true;
+  }
+
+  private reconcileRunningStages(
+    pipelineDir: string,
+    profile: PipelineProfile,
+    state: PipelineState
+  ): boolean {
+    let changed = false;
+
+    for (const [stageId, stageState] of Object.entries(state.stages)) {
+      if (stageState.status !== 'running') continue;
+
+      const stageDef = profile.stages.find((s) => s.id === stageId);
+      if (!stageDef) continue;
+
+      const outputs = stageDef.outputs || [];
+      if (outputs.length === 0) continue;
+
+      let allOutputsPresent = true;
+      let allFilesSettled = true;
+      const now = Date.now();
+      const stageStartMs = stageState.startTime ? new Date(stageState.startTime).getTime() : 0;
+
+      for (const outName of outputs) {
+        const outPath = path.join(pipelineDir, outName);
+        if (!fs.existsSync(outPath)) {
+          allOutputsPresent = false;
+          break;
+        }
+        try {
+          const stat = fs.statSync(outPath);
+          if (stat.size === 0) {
+            allOutputsPresent = false;
+            break;
+          }
+          // File must be modified during or after stage start (allowing 2s clock skew)
+          if (stageStartMs > 0 && stat.mtimeMs < stageStartMs - 2000) {
+            allOutputsPresent = false;
+            break;
+          }
+          // Ensure at least 2 seconds passed since last modification
+          if (now - stat.mtimeMs < 2000) {
+            allFilesSettled = false;
+          }
+        } catch {
+          allOutputsPresent = false;
+          break;
+        }
+      }
+
+      if (allOutputsPresent && allFilesSettled) {
+        console.log(`[pipeline-controller] Stage "${stageId}" satisfied artifact contract (${outputs.join(', ')}). Advancing stage.`);
+        this.completeStage(stageId, pipelineDir, profile, state, undefined, `Artifact contract satisfied (${outputs.join(', ')})`);
+        changed = true;
+      }
+    }
+
+    return changed;
+  }
+
   private async dispatchStage(
     pipelineDir: string,
     runId: string,
     stage: StageDefinition,
     state: PipelineState
   ): Promise<void> {
-    const prompt = buildPromptForStage({
-      pipelineId: state.id,
-      objective: state.objective,
-      workspace: state.workspace.path,
-      pipelineDir,
-      taskId: `task-${stage.id}`,
-      dispatchId: `disp-${stage.id}`,
-      stage,
-      inputs: stage.inputs,
-      fixIteration: state.fixLoops,
-    });
-
-    const taskFile = path.join(pipelineDir, `task-${stage.id}.md`);
-    writeArtifact(pipelineDir, `task-${stage.id}.md`, prompt);
-
     let taskId = `task-${stage.id}-${Date.now()}`;
     try {
       const taskRes = await this.orca.taskCreate({
-        spec: prompt,
+        spec: `Task for stage ${stage.id} in pipeline ${state.id}`,
         taskTitle: `${state.id} / ${stage.id}`,
         runId,
       });
@@ -208,7 +337,24 @@ export class PipelineController {
       console.warn(`[pipeline-controller] task-create failed, using fallback taskId:`, err.message);
     }
 
-    let dispatchId = `disp-${stage.id}-${Date.now()}`;
+    const dispatchId = `disp-${stage.id}-${Date.now()}`;
+
+    const prompt = buildPromptForStage({
+      pipelineId: state.id,
+      objective: state.objective,
+      workspace: state.workspace.path,
+      pipelineDir,
+      taskId,
+      dispatchId,
+      stage,
+      inputs: stage.inputs,
+      fixIteration: state.fixLoops,
+    });
+
+    const taskFile = path.join(pipelineDir, `task-${stage.id}.md`);
+    writeArtifact(pipelineDir, `task-${stage.id}.md`, prompt);
+
+    let actualDispatchId = dispatchId;
     let terminalHandle: string | undefined;
 
     try {
@@ -223,13 +369,14 @@ export class PipelineController {
         taskFile,
         focus: true,
       });
-      dispatchId = spawnRes.dispatchId;
+      actualDispatchId = spawnRes.dispatchId || dispatchId;
       terminalHandle = spawnRes.terminalHandle;
 
       updateStageState(state, stage.id, {
         status: 'running',
         taskId,
-        dispatchId,
+        dispatchId: actualDispatchId,
+        terminalHandle,
         startTime: new Date().toISOString(),
       });
     } catch (err: any) {
@@ -269,6 +416,16 @@ export class PipelineController {
         }
       }
 
+      // Match by stage name if in task or dispatch string
+      if (!matchedStageId && (taskId || dispatchId)) {
+        for (const sId of Object.keys(state.stages)) {
+          if ((taskId && taskId.includes(sId)) || (dispatchId && dispatchId.includes(sId))) {
+            matchedStageId = sId;
+            break;
+          }
+        }
+      }
+
       // Fallback match if only one stage is currently running
       if (!matchedStageId) {
         const runningStages = Object.entries(state.stages).filter(([_, s]) => s.status === 'running');
@@ -283,47 +440,13 @@ export class PipelineController {
       const stageState = state.stages[matchedStageId];
 
       if (outcome === 'succeeded') {
-        // Special check for review stage
-        if (matchedStageId === 'review') {
-          const reviewContent = readArtifact(pipelineDir, 'review.md') || '';
-          const isFail = /VERDICT:\s*FAIL/i.test(reviewContent);
-
-          if (isFail) {
-            if (state.fixLoops < this.config.policies.max_fix_loops) {
-              state.fixLoops += 1;
-              // Trigger fix loop: reset implement, test, and review to pending
-              updateStageState(state, matchedStageId, {
-                status: 'pending',
-                notes: `Review failed (Loop #${state.fixLoops}). Scheduling fix.`,
-              });
-
-              if (state.stages['test']) {
-                updateStageState(state, 'test', { status: 'pending' });
-              }
-              if (state.stages['implement']) {
-                updateStageState(state, 'implement', { status: 'pending' });
-              }
-              saveState(pipelineDir, state);
-              return;
-            } else {
-              // Exceeded max fix loops -> escalate
-              updateStageState(state, matchedStageId, {
-                status: 'failed',
-                error: `Review failed after maximum fix loops (${state.fixLoops})`,
-              });
-              state.status = 'escalated';
-              saveState(pipelineDir, state);
-              return;
-            }
-          }
-        }
-
-        // Standard stage success
-        updateStageState(state, matchedStageId, {
-          status: 'completed',
-          endTime: new Date().toISOString(),
-          modifiedFiles: filesModified ? String(filesModified).split(',') : undefined,
-        });
+        this.completeStage(
+          matchedStageId,
+          pipelineDir,
+          profile,
+          state,
+          filesModified ? String(filesModified).split(',') : undefined
+        );
       } else {
         // Outcome failed
         const currentRetries = stageState.retries || 0;

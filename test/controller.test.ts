@@ -182,4 +182,43 @@ describe('PipelineController and Fix Loop', () => {
     // Clean up
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
+
+  it('reconciles running stage when artifact contract is satisfied on disk', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-recon-'));
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.artifacts.root = path.join(tempDir, '.omp', 'pipelines');
+
+    const client = new OrcaClient({
+      execFn: async () => ({ stdout: JSON.stringify({ ok: true }), stderr: '', exitCode: 0 }),
+    });
+    const spawner = new WorkerSpawner(client);
+    const controller = new PipelineController({ config, orca: client, spawner, cwd: tempDir });
+
+    const { dir, state, profile } = await controller.createPipeline({
+      objective: 'Build payment flow',
+      profileName: 'standard',
+    });
+
+    // Mark plan as running
+    state.stages.plan.status = 'running';
+    state.stages.plan.startTime = new Date(Date.now() - 5000).toISOString();
+
+    // Plan output is plan.md
+    writeArtifact(dir, 'plan.md', '# Architecture Plan\n\n1. Payment gateway setup\n2. Webhooks\n');
+
+    // Manually set mtimeMs back a bit so it is settled (> 2s old)
+    const planPath = path.join(dir, 'plan.md');
+    const pastTime = (Date.now() - 3000) / 1000;
+    fs.utimesSync(planPath, pastTime, pastTime);
+
+    // Call reconcileRunningStages
+    const changed = (controller as any).reconcileRunningStages(dir, profile, state);
+
+    expect(changed).toBe(true);
+    expect(state.stages.plan.status as string).toBe('completed');
+    expect(state.stages.plan.notes).toContain('Artifact contract satisfied');
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
 });
+

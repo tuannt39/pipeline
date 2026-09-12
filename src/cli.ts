@@ -194,6 +194,32 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
       break;
     }
 
+    case 'resume': {
+      const targetId = argv[1];
+      const pipelines = listPipelines(config.artifacts.root, cwd);
+
+      if (pipelines.length === 0) {
+        console.log('No pipelines found to resume.');
+        return;
+      }
+
+      let pipelineId = targetId;
+      if (!pipelineId) {
+        // Pick the latest incomplete or running pipeline
+        const candidate = pipelines.find((p) => p.state.status !== 'completed' && p.state.status !== 'aborted');
+        pipelineId = candidate ? candidate.id : pipelines[0].id;
+      }
+
+      console.log(`Resuming pipeline ${pipelineId}...`);
+      const controller = new PipelineController({ config, cwd });
+      const finalState = await controller.resumePipeline(pipelineId, (st) => {
+        process.stdout.write(`\r[${st.status}] Resuming stages...`);
+      });
+
+      console.log('\n\n' + formatStatus(finalState));
+      break;
+    }
+
     default: {
       // If first argument is not a known subcommand, treat all args as an objective
       const objective = argv.join(' ').trim();
@@ -218,6 +244,7 @@ USAGE:
   pipeline init [--gemini|--omp] [--force]
   pipeline doctor
   pipeline start [--profile <profile>] [--worktree <worktree>] <objective>
+  pipeline resume [<id>]
   pipeline status [<id>]
   pipeline list
   pipeline stop <id>
