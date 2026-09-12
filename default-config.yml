@@ -1,0 +1,31 @@
+version: 1
+
+orca:
+  command: orca
+
+workspace:
+  default: active
+  create_worktree_only_when_requested: true
+
+defaults:
+  profile: standard
+  agent: omp
+  timeout_ms: 3600000
+  max_retries: 2
+
+artifacts:
+  root: .omp/pipelines
+
+policies:
+  require_plan_before_implementation: true
+  require_review_before_success: true
+  require_tests_before_merge: true
+  max_fix_loops: 3
+  max_stage_retries: 2
+  max_pipeline_retries: 1
+
+profiles:
+  simple: profiles/simple.yml
+  standard: profiles/standard.yml
+  secure: profiles/secure.yml
+  full: profiles/full.yml

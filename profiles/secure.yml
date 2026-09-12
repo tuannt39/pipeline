@@ -1,0 +1,123 @@
+name: secure
+description: Secure workflow with parallel architect, security, and pattern specialists
+
+stages:
+  - id: plan
+    role: planner
+    agent: omp
+    worktree: active
+    mode: analysis
+    read_only: true
+    outputs:
+      - plan.md
+    next:
+      - architecture
+      - security
+      - pattern
+
+  - id: architecture
+    role: architect
+    agent: omp
+    worktree: active
+    read_only: true
+    inputs:
+      - plan.md
+    outputs:
+      - architecture.md
+    deps:
+      - plan
+    next:
+      - implement
+
+  - id: security
+    role: security
+    agent: omp
+    worktree: active
+    read_only: true
+    inputs:
+      - plan.md
+    outputs:
+      - security-plan.md
+    deps:
+      - plan
+    next:
+      - implement
+
+  - id: pattern
+    role: design-pattern
+    agent: omp
+    worktree: active
+    read_only: true
+    inputs:
+      - plan.md
+    outputs:
+      - pattern.md
+    deps:
+      - plan
+    next:
+      - implement
+
+  - id: implement
+    role: coder
+    agent: omp
+    worktree: active
+    mode: goal
+    inputs:
+      - plan.md
+      - architecture.md
+      - security-plan.md
+      - pattern.md
+    outputs:
+      - implementation.md
+    deps:
+      - architecture
+      - security
+      - pattern
+    next:
+      - test
+
+  - id: test
+    role: tester
+    agent: omp
+    worktree: active
+    mode: verify
+    inputs:
+      - plan.md
+      - implementation.md
+    outputs:
+      - test.md
+    next:
+      - review
+
+  - id: review
+    role: reviewer
+    agent: omp
+    worktree: active
+    mode: review
+    inputs:
+      - plan.md
+      - implementation.md
+      - test.md
+    outputs:
+      - review.md
+    on:
+      pass: final-security
+      fail: fix
+
+  - id: final-security
+    role: security-review
+    agent: omp
+    worktree: active
+    read_only: true
+    inputs:
+      - plan.md
+      - security-plan.md
+      - implementation.md
+      - review.md
+    outputs:
+      - security-review.md
+    deps:
+      - review
+    on:
+      pass: completed
+      fail: fix

@@ -1,0 +1,54 @@
+name: standard
+description: Standard workflow (plan -> implement -> test -> review with fix loop)
+
+stages:
+  - id: plan
+    role: planner
+    agent: omp
+    worktree: active
+    mode: analysis
+    read_only: true
+    outputs:
+      - plan.md
+    next:
+      - implement
+
+  - id: implement
+    role: coder
+    agent: omp
+    worktree: active
+    mode: goal
+    inputs:
+      - plan.md
+    outputs:
+      - implementation.md
+    next:
+      - test
+
+  - id: test
+    role: tester
+    agent: omp
+    worktree: active
+    mode: verify
+    inputs:
+      - plan.md
+      - implementation.md
+    outputs:
+      - test.md
+    next:
+      - review
+
+  - id: review
+    role: reviewer
+    agent: omp
+    worktree: active
+    mode: review
+    inputs:
+      - plan.md
+      - implementation.md
+      - test.md
+    outputs:
+      - review.md
+    on:
+      pass: completed
+      fail: fix

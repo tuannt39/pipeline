@@ -1,0 +1,39 @@
+name: simple
+description: Fast path for simple changes (implement -> test -> review)
+
+stages:
+  - id: implement
+    role: coder
+    agent: omp
+    worktree: active
+    mode: goal
+    outputs:
+      - implementation.md
+    next:
+      - test
+
+  - id: test
+    role: tester
+    agent: omp
+    worktree: active
+    mode: verify
+    inputs:
+      - implementation.md
+    outputs:
+      - test.md
+    next:
+      - review
+
+  - id: review
+    role: reviewer
+    agent: omp
+    worktree: active
+    mode: review
+    inputs:
+      - implementation.md
+      - test.md
+    outputs:
+      - review.md
+    on:
+      pass: completed
+      fail: fix
