@@ -211,7 +211,7 @@ describe('PipelineController and Fix Loop', () => {
     const pastTime = (Date.now() - 3000) / 1000;
     fs.utimesSync(planPath, pastTime, pastTime);
 
-    // Call reconcileRunningStages
+    // Call reconcileRunningStages (no terminal handle => immediate artifact completion)
     const changed = await (controller as any).reconcileRunningStages(dir, profile, state);
 
     expect(changed).toBe(true);
@@ -220,5 +220,80 @@ describe('PipelineController and Fix Loop', () => {
 
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
+
+  it('does not advance stage while worker terminal is still active in Orca', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-recon-active-'));
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.artifacts.root = path.join(tempDir, '.omp', 'pipelines');
+
+    // Mock client where term_worker_1 is still active and connected
+    const client = new OrcaClient({
+      execFn: async (cmd, args) => {
+        if (args.includes('list') && args.includes('terminal')) {
+          return {
+            stdout: JSON.stringify({
+              ok: true,
+              result: { terminals: [{ handle: 'term_worker_1', connected: true }] },
+            }),
+            stderr: '',
+            exitCode: 0,
+          };
+        }
+        return { stdout: JSON.stringify({ ok: true }), stderr: '', exitCode: 0 };
+      },
+    });
+    const spawner = new WorkerSpawner(client);
+    const controller = new PipelineController({ config, orca: client, spawner, cwd: tempDir });
+
+    const { dir, state, profile } = await controller.createPipeline({
+      objective: 'Implement OAuth',
+      profileName: 'standard',
+    });
+
+    state.stages.plan.status = 'completed';
+    state.stages.implement.status = 'running';
+    state.stages.implement.terminalHandle = 'term_worker_1';
+    state.stages.implement.startTime = new Date(Date.now() - 5000).toISOString();
+
+    // implementation.md exists on disk
+    writeArtifact(dir, 'implementation.md', '# Implementation Report\nDone.');
+    const implPath = path.join(dir, 'implementation.md');
+    const pastTime = (Date.now() - 3000) / 1000;
+    fs.utimesSync(implPath, pastTime, pastTime);
+
+    // 1. Reconcile while terminal is active -> should NOT complete yet
+    const changedActive = await (controller as any).reconcileRunningStages(dir, profile, state);
+    expect(changedActive).toBe(false);
+    expect(state.stages.implement.status as string).toBe('running');
+
+    // 2. Now simulate terminal exiting/closing (not in active list)
+    const deadClient = new OrcaClient({
+      execFn: async (cmd, args) => {
+        if (args.includes('list') && args.includes('terminal')) {
+          return {
+            stdout: JSON.stringify({
+              ok: true,
+              result: { terminals: [] },
+            }),
+            stderr: '',
+            exitCode: 0,
+          };
+        }
+        return { stdout: JSON.stringify({ ok: true }), stderr: '', exitCode: 0 };
+      },
+    });
+    (controller as any).orca = deadClient;
+
+    // Reconcile after terminal closed -> completes final step and advances
+    const changedDead = await (controller as any).reconcileRunningStages(dir, profile, state);
+    expect(changedDead).toBe(true);
+    expect(state.stages.implement.status as string).toBe('completed');
+
+    // 3. Test printPeriodicStatusBanner executes cleanly
+    expect(() => controller.printPeriodicStatusBanner(state, profile)).not.toThrow();
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
 });
+
 

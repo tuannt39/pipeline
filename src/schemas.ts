@@ -79,9 +79,16 @@ export const PipelineConfigSchema = z
         agent: z.string().default('auto'),
         timeout_ms: z.number().int().positive().default(3600000),
         max_retries: z.number().int().nonnegative().default(2),
+        status_interval_ms: z.number().int().positive().default(180000),
       })
       .passthrough()
-      .default({ profile: 'standard', agent: 'auto', timeout_ms: 3600000, max_retries: 2 }),
+      .default({
+        profile: 'standard',
+        agent: 'auto',
+        timeout_ms: 3600000,
+        max_retries: 2,
+        status_interval_ms: 180000,
+      }),
     artifacts: z
       .object({
         root: z.string().default('.agents/pipelines'),

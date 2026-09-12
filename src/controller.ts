@@ -136,11 +136,21 @@ export class PipelineController {
     saveState(pipelineDir, state);
     onUpdate?.(state);
 
+    const statusIntervalMs = this.config.defaults.status_interval_ms || 180000;
+    let lastStatusCheckTime = Date.now();
     const maxLoops = 1000;
     let iteration = 0;
 
     while (iteration++ < maxLoops) {
       state = loadState(pipelineDir);
+
+      // Periodic status check job (every 3 minutes by default)
+      const now = Date.now();
+      if (now - lastStatusCheckTime >= statusIntervalMs) {
+        lastStatusCheckTime = now;
+        this.printPeriodicStatusBanner(state, profile);
+        onUpdate?.(state);
+      }
 
       // Reconcile running stages against disk artifacts
       const reconciled = await this.reconcileRunningStages(pipelineDir, profile, state);
@@ -330,7 +340,13 @@ export class PipelineController {
       }
 
       if (allOutputsPresent && allFilesSettled) {
-        console.log(`[pipeline-controller] Stage "${stageId}" satisfied artifact contract (${outputs.join(', ')}). Advancing stage.`);
+        // If the worker terminal is still active in Orca, do NOT spawn the next stage session early.
+        // Allow the current worker to complete its final turn (tests, wrap-up, status check, worker_done).
+        if (stageState.terminalHandle && activeTerminals && activeTerminals.has(stageState.terminalHandle)) {
+          continue;
+        }
+
+        console.log(`[pipeline-controller] Stage "${stageId}" reached final step with artifacts satisfied (${outputs.join(', ')}). Advancing stage.`);
         this.completeStage(stageId, pipelineDir, profile, state, undefined, `Artifact contract satisfied (${outputs.join(', ')})`);
         changed = true;
         continue;
@@ -630,5 +646,36 @@ export class PipelineController {
     }
 
     writeArtifact(pipelineDir, 'result.md', lines.join('\n'));
+  }
+
+  public printPeriodicStatusBanner(state: PipelineState, profile: PipelineProfile): void {
+    const elapsedMs = Date.now() - new Date(state.createdAt).getTime();
+    const elapsedMinutes = Math.floor(elapsedMs / 60000);
+    const elapsedSeconds = Math.floor((elapsedMs % 60000) / 1000);
+    const timeStr = new Date().toLocaleTimeString();
+
+    console.log(`\n--------------------------------------------------------------------------------`);
+    console.log(`[${timeStr}] [Pipeline Status Check - Periodic 3m Ticker]`);
+    console.log(`Pipeline ID: ${state.id} | Status: ${state.status.toUpperCase()} | Profile: ${profile.name}`);
+    console.log(`Objective:   ${state.objective}`);
+    console.log(`Duration:    ${elapsedMinutes}m ${elapsedSeconds}s | Fix Loops: ${state.fixLoops}`);
+    console.log(`Stages:`);
+
+    for (const stage of profile.stages) {
+      const s = state.stages[stage.id];
+      const statusLabel = s?.status || 'pending';
+      const icon = statusLabel === 'completed' ? '✓' : statusLabel === 'running' ? '●' : statusLabel === 'failed' ? '✗' : '○';
+      let extra = '';
+      if (statusLabel === 'running' && s?.startTime) {
+        const stageDurationSec = Math.floor((Date.now() - new Date(s.startTime).getTime()) / 1000);
+        extra = ` (active ${stageDurationSec}s, term: ${s.terminalHandle || 'n/a'})`;
+      } else if (s?.notes) {
+        extra = ` (${s.notes})`;
+      } else if (s?.error) {
+        extra = ` (Error: ${s.error})`;
+      }
+      console.log(`  ${icon} ${stage.id.padEnd(16)} [${statusLabel.padEnd(9)}]${extra}`);
+    }
+    console.log(`--------------------------------------------------------------------------------\n`);
   }
 }

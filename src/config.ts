@@ -40,6 +40,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     agent: 'auto',
     timeout_ms: 3600000,
     max_retries: 2,
+    status_interval_ms: 180000,
   },
   artifacts: {
     root: '.agents/pipelines',
@@ -152,6 +153,7 @@ defaults:
   agent: ${defaultAgent}
   timeout_ms: 3600000
   max_retries: 2
+  status_interval_ms: 180000
 
 artifacts:
   root: ${artifactsRoot}

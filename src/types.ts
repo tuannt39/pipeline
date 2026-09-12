@@ -65,6 +65,7 @@ export interface PipelineConfig {
     agent: string;
     timeout_ms: number;
     max_retries: number;
+    status_interval_ms?: number;
   };
   artifacts: {
     root: string;

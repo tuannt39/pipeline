@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { findConfigFile, hasCommand, detectDefaultAgent, loadConfig, initConfiguration } from './config';
+import { loadProfile } from './profiles';
 import { PipelineController } from './controller';
 import { getPipelineDir, listPipelines, loadState, saveState } from './state';
 import { PipelineState } from './types';
@@ -220,6 +221,48 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
       break;
     }
 
+    case 'watch': {
+      let targetId: string | undefined;
+      let intervalSec = 180; // 3 minutes default
+
+      for (let i = 1; i < argv.length; i++) {
+        if (argv[i] === '--interval' && i + 1 < argv.length) {
+          intervalSec = parseInt(argv[++i], 10) || 180;
+        } else if (!targetId) {
+          targetId = argv[i];
+        }
+      }
+
+      const pipelines = listPipelines(config.artifacts.root, cwd);
+      if (pipelines.length === 0) {
+        console.log('No pipelines found.');
+        return;
+      }
+
+      const pipelineId = targetId || pipelines[0].id;
+      const pipelineDir = getPipelineDir(pipelineId, config.artifacts.root, cwd);
+      console.log(`Watching pipeline ${pipelineId} (interval: ${intervalSec}s, Ctrl+C to stop)...\n`);
+
+      const controller = new PipelineController({ config, cwd });
+      const render = () => {
+        try {
+          const st = loadState(pipelineDir);
+          const prof = loadProfile(st.profile, config, cwd);
+          controller.printPeriodicStatusBanner(st, prof);
+        } catch (err: any) {
+          console.error(`Failed to read pipeline status:`, err.message);
+        }
+      };
+
+      render();
+      const timer = setInterval(render, intervalSec * 1000);
+      process.on('SIGINT', () => {
+        clearInterval(timer);
+        process.exit(0);
+      });
+      break;
+    }
+
     default: {
       // If first argument is not a known subcommand, treat all args as an objective
       const objective = argv.join(' ').trim();
@@ -245,6 +288,7 @@ USAGE:
   pipeline doctor
   pipeline start [--profile <profile>] [--worktree <worktree>] <objective>
   pipeline resume [<id>]
+  pipeline watch [<id>] [--interval <sec>]
   pipeline status [<id>]
   pipeline list
   pipeline stop <id>
