@@ -25,6 +25,10 @@
     "default-config.yml",
     "profiles/",
     "src/",
+    "skills/",
+    "commands/",
+    "plugin.json",
+    "gemini-extension.json",
     "README.md"
   ],
   "omp": {

@@ -1,0 +1,5 @@
+{
+  "name": "pipeline",
+  "description": "Thin Pipeline Orchestrator for OMP and Antigravity leveraging Orca Native Orchestration",
+  "version": "0.1.0"
+}

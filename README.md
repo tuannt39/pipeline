@@ -112,10 +112,21 @@ profiles:
 
 ---
 
----
+## Installation
 
-## Installation as OMP Plugin
+### For Antigravity (AGY)
+Install directly into Antigravity CLI:
 
+```bash
+agy plugin install https://github.com/tuannt39/pipeline
+```
+
+Verify the installation:
+```bash
+agy plugin list
+```
+
+### For Oh-My-Pi (OMP)
 Install directly into Oh-My-Pi using the plugin manager:
 
 ```bash
