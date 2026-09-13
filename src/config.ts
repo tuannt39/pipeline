@@ -36,7 +36,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     create_worktree_only_when_requested: true,
   },
   defaults: {
-    profile: 'standard',
+    profile: 'full',
     agent: 'auto',
     timeout_ms: 3600000,
     max_retries: 2,
@@ -47,6 +47,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   },
   policies: {
     require_plan_before_implementation: true,
+    require_plan_approval: true,
     require_review_before_success: true,
     require_tests_before_merge: true,
     max_fix_loops: 3,
@@ -149,7 +150,7 @@ workspace:
   create_worktree_only_when_requested: true
 
 defaults:
-  profile: standard
+  profile: full
   agent: ${defaultAgent}
   timeout_ms: 3600000
   max_retries: 2
@@ -160,6 +161,7 @@ artifacts:
 
 policies:
   require_plan_before_implementation: true
+  require_plan_approval: true
   require_review_before_success: true
   require_tests_before_merge: true
   max_fix_loops: 3

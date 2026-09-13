@@ -8,8 +8,9 @@ describe('Config and Profiles', () => {
     expect(config.version).toBe(1);
     expect(config.orca.command).toBe('orca');
     expect(config.workspace.default).toBe('active');
-    expect(config.defaults.profile).toBe('standard');
+    expect(config.defaults.profile).toBe('full');
     expect(config.defaults.agent).toBe('auto');
+    expect(config.policies.require_plan_approval).toBe(true);
     expect(config.policies.max_fix_loops).toBe(3);
   });
 
@@ -72,7 +73,7 @@ describe('Config and Profiles', () => {
     const config = loadConfig(tmpFile);
     expect(config.version).toBe(1);
     expect(config.orca.command).toBe('orca');
-    expect(config.defaults.profile).toBe('standard');
+    expect(config.defaults.profile).toBe('full');
 
     try {
       fs.unlinkSync(tmpFile);

@@ -72,6 +72,9 @@ plan.md MUST CONTAIN:
 5. Risks & mitigations
 6. Test strategy
 7. Acceptance criteria
+
+PLAN APPROVAL GATE:
+Upon completing plan.md, the orchestrator triggers a mandatory approval gate (⏸️ Awaiting Plan approval). The user reviews and must approve this plan before implementation can start. Ensure your plan is clear, comprehensive, and unambiguous.
 ${buildWorkerCompletionSnippet(ctx.taskId, ctx.dispatchId, `Plan complete for ${ctx.pipelineId}`)}
 `.trim();
 }

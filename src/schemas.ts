@@ -12,6 +12,7 @@ export const StageStatusSchema = z.enum([
 export const PipelineStatusSchema = z.enum([
   'pending',
   'running',
+  'waiting_approval',
   'completed',
   'failed',
   'aborted',
@@ -30,6 +31,7 @@ export const StageDefinitionSchema = z
     worktree: z.string().optional(),
     mode: z.string().optional(),
     read_only: z.boolean().optional(),
+    require_approval: z.boolean().optional(),
     inputs: z.array(z.string()).optional(),
     outputs: z.array(z.string()).optional(),
     deps: z.array(z.string()).optional(),
@@ -49,6 +51,7 @@ export const PipelineProfileSchema = z
 export const PipelinePoliciesSchema = z
   .object({
     require_plan_before_implementation: z.boolean().optional(),
+    require_plan_approval: z.boolean().default(true),
     require_review_before_success: z.boolean().optional(),
     require_tests_before_merge: z.boolean().optional(),
     max_fix_loops: z.number().int().nonnegative().default(3),
@@ -75,7 +78,7 @@ export const PipelineConfigSchema = z
       .default({ default: 'active', create_worktree_only_when_requested: true }),
     defaults: z
       .object({
-        profile: z.string().default('standard'),
+        profile: z.string().default('full'),
         agent: z.string().default('auto'),
         timeout_ms: z.number().int().positive().default(3600000),
         max_retries: z.number().int().nonnegative().default(2),
@@ -83,7 +86,7 @@ export const PipelineConfigSchema = z
       })
       .passthrough()
       .default({
-        profile: 'standard',
+        profile: 'full',
         agent: 'auto',
         timeout_ms: 3600000,
         max_retries: 2,
@@ -97,6 +100,7 @@ export const PipelineConfigSchema = z
       .default({ root: '.agents/pipelines' }),
     policies: PipelinePoliciesSchema.default({
       require_plan_before_implementation: true,
+      require_plan_approval: true,
       require_review_before_success: true,
       require_tests_before_merge: true,
       max_fix_loops: 3,
@@ -136,6 +140,15 @@ export const PipelineStateSchema = z
     status: PipelineStatusSchema,
     stages: z.record(z.string(), StageStateSchema),
     fixLoops: z.number().int().nonnegative().default(0),
+    approval: z
+      .object({
+        required: z.boolean(),
+        stageId: z.string().optional(),
+        approved: z.boolean(),
+        approvedAt: z.string().optional(),
+        approvedBy: z.string().optional(),
+      })
+      .optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })

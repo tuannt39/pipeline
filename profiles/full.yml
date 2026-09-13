@@ -62,6 +62,7 @@ stages:
     worktree: active
     mode: analysis
     read_only: true
+    require_approval: true
     inputs:
       - spec.md
       - architecture.md

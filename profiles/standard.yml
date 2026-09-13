@@ -8,6 +8,7 @@ stages:
     worktree: active
     mode: analysis
     read_only: true
+    require_approval: true
     outputs:
       - plan.md
     next:

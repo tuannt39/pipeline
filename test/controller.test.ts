@@ -6,7 +6,7 @@ import { PipelineController } from '../src/controller';
 import { DEFAULT_CONFIG } from '../src/config';
 import { OrcaClient, ExecResult } from '../src/orca';
 import { WorkerSpawner } from '../src/spawner';
-import { writeArtifact } from '../src/state';
+import { writeArtifact, saveState, loadState } from '../src/state';
 
 describe('PipelineController and Fix Loop', () => {
   it('handles review failure and triggers fix loop within max_fix_loops', async () => {
@@ -291,6 +291,88 @@ describe('PipelineController and Fix Loop', () => {
 
     // 3. Test printPeriodicStatusBanner executes cleanly
     expect(() => controller.printPeriodicStatusBanner(state, profile)).not.toThrow();
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('enforces Plan Approval Gate when plan completes, pauses with waiting_approval, and resumes after approval', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-plan-gate-'));
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.artifacts.root = path.join(tempDir, '.omp', 'pipelines');
+    config.policies.require_plan_approval = true;
+
+    const client = new OrcaClient({
+      execFn: async () => ({ stdout: JSON.stringify({ ok: true }), stderr: '', exitCode: 0 }),
+    });
+    const spawner = new WorkerSpawner(client);
+    const controller = new PipelineController({ config, orca: client, spawner, cwd: tempDir });
+
+    const { dir, state, profile } = await controller.createPipeline({
+      objective: 'Build Auth Service',
+      profileName: 'full',
+    });
+
+    // 1. Mark previous stages completed so plan can run
+    state.stages.spec.status = 'completed';
+    state.stages.architecture.status = 'completed';
+    state.stages.security.status = 'completed';
+    state.stages.pattern.status = 'completed';
+    state.stages.plan.status = 'running';
+
+    writeArtifact(dir, 'plan.md', '# Auth Service Plan\nDetailed plan.');
+    saveState(dir, state);
+
+    // 2. Complete plan stage
+    const completed = (controller as any).completeStage('plan', dir, profile, state);
+    expect(completed).toBe(true);
+
+    // 3. Status must transition to waiting_approval
+    expect(state.status).toBe('waiting_approval');
+    expect(state.approval?.required).toBe(true);
+    expect(state.approval?.approved).toBe(false);
+    expect(state.stages.plan.status as string).toBe('completed');
+
+    // 4. DAG getReadyStages must return empty while waiting_approval
+    const { getReadyStages } = require('../src/dag');
+    const readyWhileWaiting = getReadyStages(state, profile);
+    expect(readyWhileWaiting.length).toBe(0);
+
+    // 5. Approve plan
+    const updatedState = controller.approvePlan(dir, 'test-reviewer');
+    expect(updatedState.status).toBe('running');
+    expect(updatedState.approval?.approved).toBe(true);
+    expect(updatedState.approval?.approvedBy).toBe('test-reviewer');
+
+    // 6. Next stage (implement) must now be ready!
+    const readyAfterApproval = getReadyStages(updatedState, profile);
+    expect(readyAfterApproval.some((s: any) => s.id === 'implement')).toBe(true);
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('bypasses approval gate when policies.require_plan_approval is false and stage does not explicitly require approval', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-plan-nogate-'));
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.artifacts.root = path.join(tempDir, '.omp', 'pipelines');
+    config.policies.require_plan_approval = false;
+
+    const client = new OrcaClient({
+      execFn: async () => ({ stdout: JSON.stringify({ ok: true }), stderr: '', exitCode: 0 }),
+    });
+    const spawner = new WorkerSpawner(client);
+    const controller = new PipelineController({ config, orca: client, spawner, cwd: tempDir });
+
+    const { dir, state, profile } = await controller.createPipeline({
+      objective: 'Build Quick Feature',
+      profileName: 'simple',
+    });
+
+    // Simple profile doesn't have plan stage, let's complete implement stage
+    state.stages.implement.status = 'running';
+    const completed = (controller as any).completeStage('implement', dir, profile, state);
+    expect(completed).toBe(true);
+    expect(state.status).not.toBe('waiting_approval');
+    expect(state.stages.implement.status as string).toBe('completed');
 
     fs.rmSync(tempDir, { recursive: true, force: true });
   });

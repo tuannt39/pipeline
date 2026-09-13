@@ -91,6 +91,11 @@ export function getReadyStages(
   state: PipelineState,
   profile: PipelineProfile
 ): StageDefinition[] {
+  // If pipeline is awaiting user approval, do not dispatch next stages
+  if (state.status === 'waiting_approval') {
+    return [];
+  }
+
   const { stages, dependencies } = buildStageGraph(profile);
   const ready: StageDefinition[] = [];
 
@@ -129,6 +134,7 @@ export function isPipelineFinished(
   if (state.status === 'failed') return { finished: true, success: false, reason: 'Pipeline failed' };
   if (state.status === 'aborted') return { finished: true, success: false, reason: 'Pipeline aborted by user' };
   if (state.status === 'escalated') return { finished: true, success: false, reason: 'Pipeline escalated' };
+  if (state.status === 'waiting_approval') return { finished: false, success: false };
 
   // Check if any stage failed
   for (const [id, s] of Object.entries(state.stages)) {

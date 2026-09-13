@@ -33,7 +33,8 @@ describe('Zod Schemas and Runtime Validation', () => {
       const parsed = validatePipelineConfig({});
       expect(parsed.version).toBe(1);
       expect(parsed.orca.command).toBe('orca');
-      expect(parsed.defaults.profile).toBe('standard');
+      expect(parsed.defaults.profile).toBe('full');
+      expect(parsed.policies.require_plan_approval).toBe(true);
       expect(parsed.policies.max_fix_loops).toBe(3);
       expect(parsed.policies.max_stage_retries).toBe(2);
     });

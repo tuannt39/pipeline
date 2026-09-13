@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import readline from 'readline';
 import { OrcaClient } from './orca';
 import { WorkerSpawner } from './spawner';
 import { PipelineConfig, PipelineProfile, PipelineState, StageDefinition } from './types';
@@ -99,7 +100,7 @@ export class PipelineController {
     const state = loadState(pipelineDir);
     const profile = loadProfile(state.profile, this.config, this.cwd);
 
-    // Reset status if previously failed or escalated
+    // Reset status if previously failed or escalated, or if waiting_approval was approved
     if (state.status === 'failed' || state.status === 'escalated') {
       state.status = 'running';
       for (const [sId, sState] of Object.entries(state.stages)) {
@@ -108,6 +109,9 @@ export class PipelineController {
           sState.error = undefined;
         }
       }
+      saveState(pipelineDir, state);
+    } else if (state.status === 'waiting_approval' && state.approval?.approved) {
+      state.status = 'running';
       saveState(pipelineDir, state);
     }
 
@@ -179,6 +183,63 @@ export class PipelineController {
         await this.dispatchStage(pipelineDir, runId, stage, state);
         state = loadState(pipelineDir);
         onUpdate?.(state);
+      }
+
+      // Handle waiting for user plan approval
+      if (state.status === 'waiting_approval') {
+        // If interactive TTY session, prompt user directly
+        if (process.stdin.isTTY) {
+          const approved = await this.askUserApprovalTTY(state);
+          if (approved) {
+            this.approvePlan(pipelineDir, 'interactive-user');
+            state = loadState(pipelineDir);
+            onUpdate?.(state);
+            continue;
+          } else {
+            state.status = 'aborted';
+            saveState(pipelineDir, state);
+            onUpdate?.(state);
+            return state;
+          }
+        }
+
+        // Check if approval was granted externally on disk (e.g. via `pipeline approve`)
+        const diskState = loadState(pipelineDir);
+        if (diskState.approval?.approved || diskState.status !== 'waiting_approval') {
+          state = diskState;
+          onUpdate?.(state);
+          continue;
+        }
+
+        // In non-interactive mode, check Orca messages for approval or wait
+        try {
+          const delivery = await this.orca.check({
+            runId,
+            wait: true,
+            timeoutMs: 3000,
+            types: ['worker_done', 'escalation', 'question', 'user_approval'],
+          });
+
+          if (delivery && delivery.messages && delivery.messages.length > 0) {
+            for (const msg of delivery.messages) {
+              if (msg.type === 'user_approval' || /approv|proceed|ok|lgtm/i.test(msg.body || '')) {
+                this.approvePlan(pipelineDir, msg.from || 'orca-user');
+                state = loadState(pipelineDir);
+                onUpdate?.(state);
+                break;
+              }
+            }
+          }
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+
+        const refreshed = loadState(pipelineDir);
+        if (refreshed.approval?.approved || refreshed.status !== 'waiting_approval') {
+          state = refreshed;
+          onUpdate?.(state);
+        }
+        continue;
       }
 
       // Check if any stage is running
@@ -273,6 +334,31 @@ export class PipelineController {
       }
     }
 
+    // Check for plan approval gate
+    const requiresApproval =
+      stageDef.require_approval ??
+      (stageId === 'plan' && this.config.policies.require_plan_approval !== false);
+
+    if (requiresApproval && !state.approval?.approved) {
+      updateStageState(state, stageId, {
+        status: 'completed',
+        endTime: new Date().toISOString(),
+        notes: notes || 'Plan generated. Awaiting user plan approval.',
+        modifiedFiles: filesModified ? String(filesModified).split(',') : undefined,
+      });
+
+      state.approval = {
+        required: true,
+        stageId,
+        approved: false,
+      };
+      state.status = 'waiting_approval';
+      saveState(pipelineDir, state);
+
+      this.printApprovalBanner(state, pipelineDir);
+      return true;
+    }
+
     // Standard stage success
     updateStageState(state, stageId, {
       status: 'completed',
@@ -282,6 +368,58 @@ export class PipelineController {
     });
     saveState(pipelineDir, state);
     return true;
+  }
+
+  public printApprovalBanner(state: PipelineState, pipelineDir: string): void {
+    const planPath = path.join(pipelineDir, 'plan.md');
+    console.log(`\n================================================================================`);
+    console.log(`⏸️  **Awaiting Plan approval** — Please respond to continue.`);
+    console.log(`Pipeline ID:  ${state.id}`);
+    console.log(`Objective:    ${state.objective}`);
+    console.log(`Plan file:    ${planPath}`);
+    console.log(`\nTo approve plan and proceed to implementation:`);
+    console.log(`  • Terminal: Run 'pipeline approve ${state.id}'`);
+    console.log(`  • Chat / TTY: Respond with "approved", "ok", "proceed", or "lgtm"`);
+    console.log(`================================================================================\n`);
+  }
+
+  private async askUserApprovalTTY(state: PipelineState): Promise<boolean> {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    return new Promise((resolve) => {
+      rl.question('Approve plan to proceed to implementation? (y/N): ', (answer) => {
+        rl.close();
+        const trimmed = answer.trim().toLowerCase();
+        const isApproved = ['y', 'yes', 'approved', 'proceed', 'go ahead', 'lgtm', 'ok'].includes(trimmed);
+        resolve(isApproved);
+      });
+    });
+  }
+
+  public approvePlan(pipelineIdOrDir: string, approvedBy: string = 'user'): PipelineState {
+    const pipelineDir = pipelineIdOrDir.includes(path.sep)
+      ? pipelineIdOrDir
+      : getPipelineDir(pipelineIdOrDir, this.config.artifacts.root, this.cwd);
+    const state = loadState(pipelineDir);
+
+    state.approval = {
+      required: true,
+      stageId: state.approval?.stageId || 'plan',
+      approved: true,
+      approvedAt: new Date().toISOString(),
+      approvedBy,
+    };
+
+    if (state.status === 'waiting_approval') {
+      state.status = 'running';
+    }
+
+    saveState(pipelineDir, state);
+    console.log(`[pipeline-controller] Plan approved for pipeline "${state.id}" by ${approvedBy}. Resuming workflow.`);
+    return state;
   }
 
   private async reconcileRunningStages(
@@ -656,7 +794,8 @@ export class PipelineController {
 
     console.log(`\n--------------------------------------------------------------------------------`);
     console.log(`[${timeStr}] [Pipeline Status Check - Periodic 3m Ticker]`);
-    console.log(`Pipeline ID: ${state.id} | Status: ${state.status.toUpperCase()} | Profile: ${profile.name}`);
+    const statusNotice = state.status === 'waiting_approval' ? ' (⏸️ Awaiting Plan approval)' : '';
+    console.log(`Pipeline ID: ${state.id} | Status: ${state.status.toUpperCase()}${statusNotice} | Profile: ${profile.name}`);
     console.log(`Objective:   ${state.objective}`);
     console.log(`Duration:    ${elapsedMinutes}m ${elapsedSeconds}s | Fix Loops: ${state.fixLoops}`);
     console.log(`Stages:`);

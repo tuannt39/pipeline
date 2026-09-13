@@ -23,10 +23,18 @@ When the user invokes `/pipeline <objective>` or asks to run a pipeline:
    - Remind the user they can track status with `pipeline status`.
 
 Supported subcommands:
+- `/pipeline start [--profile <profile>] "<objective>"`: Launch pipeline (default profile is `full`).
+- `/pipeline approve [id]`: Approve plan artifact and advance to implementation stage.
 - `/pipeline doctor`: Run health check of Orca, agents, and configuration.
 - `/pipeline init`: Initialize `~/.gemini/config/pipeline/config.yml` and profiles.
 - `/pipeline status [id]`: Inspect live stage progress and fix loop status.
 - `/pipeline list`: List recent runs.
 - `/pipeline logs <id>`: Inspect generated artifacts in `.agents/pipelines/`.
 - `/pipeline stop <id>`: Abort a running pipeline.
+
+## Plan Approval Gate (Mandatory Hard Stop)
+When the `plan` stage completes, the orchestrator triggers an approval gate:
+`⏸️ **Awaiting Plan approval** — Please respond to continue.`
+Implementation does not proceed until the user approves via chat or by executing `pipeline approve <id>`.
+
 

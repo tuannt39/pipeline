@@ -77,10 +77,10 @@ For a deep-dive analysis into layers, role boundaries, IPC protocols, and state 
 
 | Profile | Flow | Use Case |
 |---|---|---|
-| `simple` | `IMPLEMENT` → `TEST` → `REVIEW` | Quick bug fixes, typos, small features |
-| `standard` | `PLAN` → `IMPLEMENT` → `TEST` → `REVIEW` | Default production workflow with fix loop |
+| `full` | `SPEC` → `[ARCHITECT, SECURITY, PATTERN]` → `PLAN` → [GATE] → `IMPLEMENT` → `TEST` → `SECURITY-2` → `REVIEW` | **Default**: Complete multi-stage analysis, mandatory plan approval gate, implementation & security verification |
+| `standard` | `PLAN` → [GATE] → `IMPLEMENT` → `TEST` → `REVIEW` | Production workflow with plan approval and fix loop |
 | `secure` | `PLAN` → `[ARCHITECT, SECURITY, PATTERN]` in parallel → `IMPLEMENT` → `TEST` → `REVIEW` → `FINAL-SECURITY` | Security-critical, auth, API, or multi-tenant code |
-| `full` | `SPEC` → `[ARCHITECT, SECURITY, PATTERN]` → `PLAN` → `IMPLEMENT` → `TEST` → `SECURITY-2` → `REVIEW` | Large cross-cutting architectural refactors |
+| `simple` | `IMPLEMENT` → `TEST` → `REVIEW` | Quick bug fixes, typos, small features |
 
 ---
 
@@ -101,7 +101,7 @@ workspace:
   create_worktree_only_when_requested: true
 
 defaults:
-  profile: standard
+  profile: full
   agent: auto # auto-detects 'agy' or 'omp'
   timeout_ms: 3600000
   max_retries: 2
@@ -111,6 +111,7 @@ artifacts:
 
 policies:
   require_plan_before_implementation: true
+  require_plan_approval: true
   require_review_before_success: true
   require_tests_before_merge: true
   max_fix_loops: 3
@@ -169,8 +170,11 @@ omp plugin doctor
 Run directly via `bin/pipeline.ts` or `bun run pipeline`:
 
 ```bash
-# Start pipeline with default profile (standard)
+# Start pipeline with default profile (full)
 ./bin/pipeline.ts start "Implement OAuth login"
+
+# Approve plan stage when paused at approval gate
+./bin/pipeline.ts approve <pipeline-id>
 
 # Start with secure profile
 ./bin/pipeline.ts start --profile secure "Implement OAuth login with PKCE"

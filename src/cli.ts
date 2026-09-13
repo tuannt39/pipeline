@@ -11,7 +11,12 @@ export function formatStatus(state: PipelineState): string {
   lines.push(`Pipeline:  ${state.id}`);
   lines.push(`Objective: ${state.objective}`);
   lines.push(`Profile:   ${state.profile}`);
-  lines.push(`Status:    ${state.status.toUpperCase()}`);
+  if (state.status === 'waiting_approval') {
+    lines.push(`Status:    WAITING_APPROVAL ⏸️ (Awaiting user plan approval)`);
+    lines.push(`Notice:    Run 'pipeline approve ${state.id}' to continue implementation.`);
+  } else {
+    lines.push(`Status:    ${state.status.toUpperCase()}`);
+  }
   lines.push(`Workspace: ${state.workspace.mode} (${state.workspace.path})`);
   lines.push(`Fix Loops: ${state.fixLoops}`);
   lines.push(``);
@@ -221,6 +226,41 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
       break;
     }
 
+    case 'approve': {
+      const targetId = argv[1];
+      const pipelines = listPipelines(config.artifacts.root, cwd);
+
+      if (pipelines.length === 0) {
+        console.error('Error: No pipelines found to approve.');
+        process.exit(1);
+      }
+
+      let pipelineId = targetId;
+      if (!pipelineId || pipelineId.startsWith('-')) {
+        const candidate = pipelines.find((p) => p.state.status === 'waiting_approval');
+        pipelineId = candidate ? candidate.id : pipelines[0].id;
+      }
+
+      const controller = new PipelineController({ config, cwd });
+      const pipelineDir = getPipelineDir(pipelineId, config.artifacts.root, cwd);
+      const updatedState = controller.approvePlan(pipelineDir, 'user');
+
+      console.log(`Plan approved for pipeline "${pipelineId}".`);
+      console.log(`Status is now: ${updatedState.status.toUpperCase()}`);
+
+      const shouldResume = argv.includes('--resume') || argv.includes('-r');
+      if (shouldResume) {
+        console.log(`Resuming pipeline ${pipelineId}...`);
+        const finalState = await controller.resumePipeline(pipelineId, (st) => {
+          process.stdout.write(`\r[${st.status}] Resuming stages...`);
+        });
+        console.log('\n\n' + formatStatus(finalState));
+      } else {
+        console.log(`To continue execution, background runner will automatically advance, or run: pipeline resume ${pipelineId}`);
+      }
+      break;
+    }
+
     case 'watch': {
       let targetId: string | undefined;
       let intervalSec = 180; // 3 minutes default
@@ -287,6 +327,7 @@ USAGE:
   pipeline init [--gemini|--omp] [--force]
   pipeline doctor
   pipeline start [--profile <profile>] [--worktree <worktree>] <objective>
+  pipeline approve [<id>] [--resume]
   pipeline resume [<id>]
   pipeline watch [<id>] [--interval <sec>]
   pipeline status [<id>]
@@ -297,8 +338,8 @@ USAGE:
 
 PROFILES:
   simple     Fast path: implement -> test -> review
-  standard   Default: plan -> implement -> test -> review (with review fix loop)
+  standard   Production: plan -> implement -> test -> review (with review fix loop)
   secure     Parallel: plan -> [architect, security, pattern] -> implement -> test -> review -> final-security
-  full       Complete: spec -> [architect, security, pattern] -> plan -> implement -> test -> security-2 -> review
+  full       Default: spec -> [architect, security, pattern] -> plan -> implement -> test -> security-2 -> review
 `);
 }

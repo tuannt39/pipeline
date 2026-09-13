@@ -26,42 +26,49 @@ When the user asks to start or run a pipeline (or invokes `/pipeline <objective>
 3. Inform the user of the Pipeline ID and that the dedicated worker tab has been opened in Orca.
 
 ## Available Profiles
-
+ 
 | Profile | Stages | Recommended For |
 | :--- | :--- | :--- |
-| `simple` | `implement` -> `test` -> `review` | Quick bugfixes, small tasks, isolated edits |
-| `standard` | `plan` -> `implement` -> `test` -> `review` | Default feature development with review fix loop |
+| `full` | `spec` -> parallel [`architecture`, `security`, `pattern`] -> `plan` -> `implement` -> `test` -> `security-review` -> `review` | **Default**: Complete architectural analysis, plan approval gate, implementation & security verification |
+| `standard` | `plan` -> `implement` -> `test` -> `review` | Feature development with review fix loop |
 | `secure` | `plan` -> parallel [`architecture`, `security`, `pattern`] -> `implement` -> `test` -> `review` -> `final-security` | Security-critical, auth, API, multi-tenant changes |
-| `full` | `spec` -> parallel [`architecture`, `security`, `pattern`] -> `plan` -> `implement` -> `test` -> `security-review` -> `review` | Large architectural redesigns and enterprise workflows |
-
+| `simple` | `implement` -> `test` -> `review` | Quick bugfixes, small tasks, isolated edits |
+ 
 ## CLI Commands
-
+ 
 The orchestrator executable is available globally via `pipeline` or directly via `bun run bin/pipeline.ts`:
-
+ 
 ```bash
 # 0. Initialize configuration and profiles (run once or auto-initialized on first start)
 pipeline init
 # or if running from plugin directory:
 bun run ~/.gemini/config/plugins/pipeline/bin/pipeline.ts init
 
-# 1. Start a new pipeline run
+# 1. Start a new pipeline run (uses default profile: full)
 pipeline start "Objective description"
+pipeline start --profile standard "Implement simple feature"
 pipeline start --profile secure "Implement OAuth PKCE login"
 
-# 2. Inspect active or specific pipeline status
+# 2. Approve plan stage (Mandatory Plan Approval Gate)
+pipeline approve <pipeline-id>
+
+# 3. Inspect active or specific pipeline status
 pipeline status
 pipeline status pipe-<id>
 
-# 3. List recent pipeline executions
+# 4. List recent pipeline executions
 pipeline list
 
-# 4. View stage artifacts and logs
+# 5. View stage artifacts and logs
 pipeline logs <pipeline-id>
 
-# 5. Stop a running pipeline
+# 6. Stop a running pipeline
 pipeline stop <pipeline-id>
 
-# 6. Diagnostic health check
+# 7. Resume a paused or approved pipeline
+pipeline resume <pipeline-id>
+
+# 8. Diagnostic health check
 pipeline doctor
 ```
 
@@ -83,4 +90,15 @@ The pipeline orchestrator is dual-harness native:
 - **Read-Only Specialists**: Stages with roles `planner`, `architect`, `security`, `pattern`, `reviewer`, `security-review` have `read_only: true` enforced. They inspect the codebase and write structured markdown artifacts (`plan.md`, `architecture.md`, `security-plan.md`, `pattern.md`, `review.md`), but cannot modify source code.
 - **Implementers**: Only `coder` and `fixer` roles are permitted to modify source code and files.
 - **Artifact Directory**: All stage outputs and contracts are stored in `.omp/pipelines/<pipeline-id>/` (or configured `artifacts.root`).
+
+## Plan Approval Gate (Mandatory Hard Stop)
+
+When executing workflows that include the `plan` stage (such as `full` and `standard`), the orchestrator enforces a mandatory gate:
+- Once `plan.md` is generated, the pipeline halts and sets status to `waiting_approval`.
+- Awaiting banner is displayed:
+  `⏸️ **Awaiting Plan approval** — Please respond to continue.`
+- Execution will **NOT** transition to `implement` until explicit user approval is provided:
+  - In interactive terminals, prompt `[y/N]` directly.
+  - In background/Orca sessions, approve via `pipeline approve <pipeline-id>`.
+
 

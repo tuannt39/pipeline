@@ -9,6 +9,7 @@ export type StageStatus =
 export type PipelineStatus =
   | 'pending'
   | 'running'
+  | 'waiting_approval'
   | 'completed'
   | 'failed'
   | 'aborted'
@@ -25,6 +26,7 @@ export interface StageDefinition {
   worktree?: 'active' | 'new' | string;
   mode?: 'analysis' | 'goal' | 'verify' | 'review' | string;
   read_only?: boolean;
+  require_approval?: boolean;
   inputs?: string[];
   outputs?: string[];
   deps?: string[];
@@ -44,6 +46,7 @@ export interface PipelineProfile {
 
 export interface PipelinePolicies {
   require_plan_before_implementation?: boolean;
+  require_plan_approval?: boolean;
   require_review_before_success?: boolean;
   require_tests_before_merge?: boolean;
   max_fix_loops: number;
@@ -98,6 +101,13 @@ export interface PipelineState {
   status: PipelineStatus;
   stages: Record<string, StageState>;
   fixLoops: number;
+  approval?: {
+    required: boolean;
+    stageId?: string;
+    approved: boolean;
+    approvedAt?: string;
+    approvedBy?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
