@@ -23,7 +23,8 @@ When the user invokes `/pipeline <objective>` or asks to run a pipeline:
    - Remind the user they can track status with `pipeline status`.
 
 Supported subcommands:
-- `/pipeline start [--profile <profile>] "<objective>"`: Launch pipeline (default profile is `full`).
+- `/pipeline start [--profile <profile>] "<objective>"`: Launch pipeline (profiles: `full`, `ecc`, `standard`, `secure`, `simple`).
+- `/pipeline --profile ecc "<objective>"`: Launch ECC profile in single AGY session with user confirmation gate before plan creation.
 - `/pipeline approve [id]`: Approve plan artifact and advance to implementation stage.
 - `/pipeline doctor`: Run health check of Orca, agents, and configuration.
 - `/pipeline init`: Initialize `~/.gemini/config/pipeline/config.yml` and profiles.
@@ -33,8 +34,11 @@ Supported subcommands:
 - `/pipeline stop <id>`: Abort a running pipeline.
 
 ## Plan Approval Gate (Mandatory Hard Stop)
-When the `plan` stage completes, the orchestrator triggers an approval gate:
+When executing workflows that include approval gates:
+- In `full` and `standard` profiles: Halts after `plan` completes before implementation.
+- In `ecc` profile: Halts after `architecture-review` completes **before creating `plan.md`**.
 `⏸️ **Awaiting Plan approval** — Please respond to continue.`
 Implementation does not proceed until the user approves via chat or by executing `pipeline approve <id>`.
+
 
 

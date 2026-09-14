@@ -30,3 +30,4 @@ profiles:
   standard: profiles/standard.yml
   secure: profiles/secure.yml
   full: profiles/full.yml
+  ecc: profiles/ecc.yml

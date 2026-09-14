@@ -59,6 +59,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     standard: 'profiles/standard.yml',
     secure: 'profiles/secure.yml',
     full: 'profiles/full.yml',
+    ecc: 'profiles/ecc.yml',
   },
 };
 
