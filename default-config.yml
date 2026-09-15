@@ -31,3 +31,8 @@ profiles:
   secure: profiles/secure.yml
   full: profiles/full.yml
   ecc: profiles/ecc.yml
+
+# External Knowledge Adapter for ECC (Optional read-only folder, fallback to built-in if omitted)
+ecc:
+  path: "" # Optional path to an external git clone of affaan-m/ecc (e.g. /path/to/ecc or via ECC_DIR env)
+  auto_sync: false

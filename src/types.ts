@@ -31,6 +31,8 @@ export interface StageDefinition {
   outputs?: string[];
   deps?: string[];
   next?: string[];
+  skills?: string[];
+  ecc_skills?: string[];
   on?: {
     pass?: string;
     fail?: string;
@@ -75,6 +77,11 @@ export interface PipelineConfig {
   };
   policies: PipelinePolicies;
   profiles: Record<string, string>;
+  ecc?: {
+    path?: string;
+    auto_sync?: boolean;
+    cache_ttl_ms?: number;
+  };
 }
 
 export interface StageState {

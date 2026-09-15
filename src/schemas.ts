@@ -36,6 +36,8 @@ export const StageDefinitionSchema = z
     outputs: z.array(z.string()).optional(),
     deps: z.array(z.string()).optional(),
     next: z.array(z.string()).optional(),
+    skills: z.array(z.string()).optional(),
+    ecc_skills: z.array(z.string()).optional(),
     on: z.record(z.string(), z.string().optional()).optional(),
   })
   .passthrough();
@@ -108,6 +110,14 @@ export const PipelineConfigSchema = z
       max_pipeline_retries: 1,
     }),
     profiles: z.record(z.string(), z.string()).default({}),
+    ecc: z
+      .object({
+        path: z.string().optional(),
+        auto_sync: z.boolean().default(false),
+        cache_ttl_ms: z.number().int().positive().default(60000),
+      })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 

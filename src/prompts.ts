@@ -1,5 +1,6 @@
 import path from 'path';
 import { StageDefinition } from './types';
+import { defaultEccAdapter } from './ecc-adapter';
 
 export interface PromptContext {
   pipelineId: string;
@@ -362,29 +363,59 @@ ${buildWorkerCompletionSnippet(ctx.taskId, ctx.dispatchId, `Fix iteration ${ctx.
 }
 
 export function buildPromptForStage(ctx: PromptContext): string {
+  let prompt = '';
   switch (ctx.stage.role) {
     case 'planner':
-      return buildPlannerPrompt(ctx);
+      prompt = buildPlannerPrompt(ctx);
+      break;
     case 'architect':
-      return buildArchitectPrompt(ctx);
+      prompt = buildArchitectPrompt(ctx);
+      break;
     case 'security':
-      return buildSecurityPrompt(ctx);
+      prompt = buildSecurityPrompt(ctx);
+      break;
     case 'design-pattern':
     case 'pattern':
-      return buildPatternPrompt(ctx);
+      prompt = buildPatternPrompt(ctx);
+      break;
     case 'coder':
-      return buildCoderPrompt(ctx);
+      prompt = buildCoderPrompt(ctx);
+      break;
     case 'tester':
-      return buildTesterPrompt(ctx);
+      prompt = buildTesterPrompt(ctx);
+      break;
     case 'reviewer':
     case 'security-review':
-      return buildReviewerPrompt(ctx);
+      prompt = buildReviewerPrompt(ctx);
+      break;
     case 'fix':
-      return buildFixPrompt(ctx);
+      prompt = buildFixPrompt(ctx);
+      break;
     default:
       if (ctx.stage.mode === 'analysis' || ctx.stage.read_only) {
-        return buildPlannerPrompt(ctx);
+        prompt = buildPlannerPrompt(ctx);
+      } else {
+        prompt = buildCoderPrompt(ctx);
       }
-      return buildCoderPrompt(ctx);
+      break;
   }
+
+  // Dynamic Skill & Methodology Injection via EccKnowledgeAdapter
+  const skills = ctx.stage.skills || ctx.stage.ecc_skills;
+  if (skills && skills.length > 0) {
+    const skillGuideline = defaultEccAdapter.resolveStageSkillsSync(skills);
+    if (skillGuideline) {
+      const completionMarker = 'WHEN FINISHED:';
+      if (prompt.includes(completionMarker)) {
+        prompt = prompt.replace(
+          completionMarker,
+          `${skillGuideline}\n\n${completionMarker}`
+        );
+      } else {
+        prompt = `${prompt}\n\n${skillGuideline}`;
+      }
+    }
+  }
+
+  return prompt;
 }

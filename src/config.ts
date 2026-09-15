@@ -62,6 +62,11 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     full: 'profiles/full.yml',
     ecc: 'profiles/ecc.yml',
   },
+  ecc: {
+    path: process.env.ECC_DIR || process.env.ECC_PATH || '',
+    auto_sync: false,
+    cache_ttl_ms: 60000,
+  },
 };
 
 export function resolveHome(filepath: string): string {
@@ -176,6 +181,10 @@ profiles:
   secure: ${profilesDir}/secure.yml
   full: ${profilesDir}/full.yml
   ecc: ${profilesDir}/ecc.yml
+
+ecc:
+  path: "${process.env.ECC_DIR || process.env.ECC_PATH || ''}"
+  auto_sync: false
 `;
     fs.writeFileSync(configPath, configYaml, 'utf8');
 
