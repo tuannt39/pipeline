@@ -557,7 +557,13 @@ export function loadProfile(profileName: string, config: PipelineConfig, cwd: st
       const parsed = yaml.parse(content);
       const validated = PipelineProfileSchema.safeParse(parsed);
       if (validated.success) {
-        return validated.data as PipelineProfile;
+        const profile = validated.data as PipelineProfile;
+        for (const stage of profile.stages) {
+          if (!stage.agent) {
+            stage.agent = config.defaults?.agent || 'auto';
+          }
+        }
+        return profile;
       }
       console.warn(`[pipeline-profile] Invalid profile schema in ${profilePath}:`, validated.error.format());
     } catch (err) {

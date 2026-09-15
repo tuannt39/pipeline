@@ -77,7 +77,8 @@ For a deep-dive analysis into layers, role boundaries, IPC protocols, and state 
 
 | Profile | Flow | Use Case |
 |---|---|---|
-| `full` | `SPEC` → `[ARCHITECT, SECURITY, PATTERN]` → `PLAN` → [GATE] → `IMPLEMENT` → `TEST` → `SECURITY-2` → `REVIEW` | **Default**: Complete multi-stage analysis, mandatory plan approval gate, implementation & security verification |
+| `ecc` | `REQUIREMENT` → `ACCEPTANCE` → `IMPACT` → `BLUEPRINT` → `ARCH` → `PATTERNS` → `ADR` → `ARCH-REVIEW` → [GATE] → `PLAN` → `ACC-TESTS` → `TDD` → `IMPLEMENT` → `CODE-REVIEW` → `SEC-REVIEW` → `DESIGN-CONFORMANCE` → `REMEDIATION` → `TEST` → `VERIFICATION` → `AUDIT` → `EVIDENCE` | **Default**: Comprehensive 20-stage ECC engineering lifecycle with pre-plan confirmation gate and 360° master plan |
+| `full` | `SPEC` → `[ARCHITECT, SECURITY, PATTERN]` → `PLAN` → [GATE] → `IMPLEMENT` → `TEST` → `SECURITY-2` → `REVIEW` | Complete multi-stage analysis, mandatory plan approval gate, implementation & security verification |
 | `standard` | `PLAN` → [GATE] → `IMPLEMENT` → `TEST` → `REVIEW` | Production workflow with plan approval and fix loop |
 | `secure` | `PLAN` → `[ARCHITECT, SECURITY, PATTERN]` in parallel → `IMPLEMENT` → `TEST` → `REVIEW` → `FINAL-SECURITY` | Security-critical, auth, API, or multi-tenant code |
 | `simple` | `IMPLEMENT` → `TEST` → `REVIEW` | Quick bug fixes, typos, small features |
@@ -101,7 +102,7 @@ workspace:
   create_worktree_only_when_requested: true
 
 defaults:
-  profile: full
+  profile: ecc
   agent: auto # auto-detects 'agy' or 'omp'
   timeout_ms: 3600000
   max_retries: 2

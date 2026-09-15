@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import path from 'path';
 import {
   buildPlannerPrompt,
   buildArchitectPrompt,
@@ -25,9 +26,28 @@ describe('Prompt Compiler', () => {
     const prompt = buildPlannerPrompt(baseCtx);
     expect(prompt).toContain('ROLE:\nYou are the planning agent.');
     expect(prompt).toContain('DO NOT:\n- modify application source code');
-    expect(prompt).toContain('/test/workspace/.omp/pipelines/pipe-test-001/plan.md');
+    expect(prompt).toContain(path.join(baseCtx.pipelineDir, 'plan.md'));
     expect(prompt).toContain('orca orchestration send');
     expect(prompt).toContain('--type worker_done');
+  });
+
+  it('builds planner prompt with pre-plan inputs requiring comprehensive 360 master plan', () => {
+    const prompt = buildPlannerPrompt({
+      ...baseCtx,
+      inputs: [
+        'requirement.md',
+        'acceptance.md',
+        'architecture.md',
+        'design-patterns.md',
+        'architecture-review.md',
+      ],
+    });
+    expect(prompt).toContain('MANDATORY INPUTS (PRE-PLAN STAGES ARTIFACTS):');
+    expect(prompt).toContain('requirement.md');
+    expect(prompt).toContain('architecture.md');
+    expect(prompt).toContain('COMPREHENSIVE 360° MASTER PLAN');
+    expect(prompt).toContain('PART I: PRE-PLAN ANALYSIS & ARCHITECTURAL BASELINE');
+    expect(prompt).toContain('PART II: EXECUTION & VERIFICATION ROADMAP');
   });
 
   it('builds architect prompt with architecture.md contract', () => {

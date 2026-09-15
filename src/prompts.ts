@@ -44,26 +44,40 @@ orca orchestration send \\
 
 export function buildPlannerPrompt(ctx: PromptContext): string {
   const planFile = path.join(ctx.pipelineDir, 'plan.md');
-  return `
-ROLE:
-You are the planning agent.
+  const hasPrePlanInputs = ctx.inputs && ctx.inputs.length > 0;
+  const inputSection = hasPrePlanInputs
+    ? `
+MANDATORY INPUTS (PRE-PLAN STAGES ARTIFACTS):
+${ctx.inputs!.map((f) => `- ${path.join(ctx.pipelineDir, f)}`).join('\n')}
 
-PIPELINE: ${ctx.pipelineId}
-OBJECTIVE: ${ctx.objective}
-WORKSPACE: ${ctx.workspace}
-
+Read and thoroughly synthesize all completed pre-plan analysis artifacts before drafting plan.md.
+`
+    : `
 READ:
 - Entire repository structure and code files relevant to the objective
 - Current git state and branch history
+`;
 
-DO NOT:
-- modify application source code
-- commit changes
-- create git worktree
+  const structureSection = hasPrePlanInputs
+    ? `
+plan.md MUST BE A COMPREHENSIVE 360° MASTER PLAN CONTAINING:
+PART I: PRE-PLAN ANALYSIS & ARCHITECTURAL BASELINE (Consolidate Stages 1–8 findings)
+1. Requirements & Business Rules (Synthesize business context and constraints from requirement.md / business-rules.md)
+2. Acceptance Criteria (Clear behavioral & technical conditions from acceptance.md)
+3. Impact Analysis & Affected Components (From impact-analysis.md)
+4. System Blueprint & Target Architecture (From blueprint.md and architecture.md)
+5. Design Patterns & Coding Standards (From design-patterns.md)
+6. Architecture Decision Records (Core decisions and tradeoffs from adr/ADR-001.md)
+7. Architecture Review & User Confirmation (Approved baseline from architecture-review.md)
 
-MUST PRODUCE:
-${planFile}
-
+PART II: EXECUTION & VERIFICATION ROADMAP (Detailed plan for Stages 9–20)
+8. Relevant files to create or touch (surgical changes list)
+9. Proposed implementation steps (TDD setup, implementation sequence)
+10. Test strategy & acceptance test specifications (test-plan.md, acceptance-tests)
+11. Code review & security review verification criteria
+12. Remediation, verification loop, and evidence domain criteria for release readiness
+`
+    : `
 plan.md MUST CONTAIN:
 1. Current architecture analysis
 2. Relevant files to touch
@@ -72,7 +86,24 @@ plan.md MUST CONTAIN:
 5. Risks & mitigations
 6. Test strategy
 7. Acceptance criteria
+`;
 
+  return `
+ROLE:
+You are the planning agent.
+
+PIPELINE: ${ctx.pipelineId}
+OBJECTIVE: ${ctx.objective}
+WORKSPACE: ${ctx.workspace}
+${inputSection}
+DO NOT:
+- modify application source code
+- commit changes
+- create git worktree
+
+MUST PRODUCE:
+${planFile}
+${structureSection}
 PLAN APPROVAL GATE:
 Upon completing plan.md, the orchestrator triggers a mandatory approval gate (⏸️ Awaiting Plan approval). The user reviews and must approve this plan before implementation can start. Ensure your plan is clear, comprehensive, and unambiguous.
 ${buildWorkerCompletionSnippet(ctx.taskId, ctx.dispatchId, `Plan complete for ${ctx.pipelineId}`)}

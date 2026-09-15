@@ -8,8 +8,8 @@ workspace:
   create_worktree_only_when_requested: true
 
 defaults:
-  profile: full
-  agent: omp
+  profile: ecc
+  agent: auto
   timeout_ms: 3600000
   max_retries: 2
 

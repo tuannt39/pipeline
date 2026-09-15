@@ -8,7 +8,7 @@ describe('Config and Profiles', () => {
     expect(config.version).toBe(1);
     expect(config.orca.command).toBe('orca');
     expect(config.workspace.default).toBe('active');
-    expect(config.defaults.profile).toBe('full');
+    expect(config.defaults.profile).toBe('ecc');
     expect(config.defaults.agent).toBe('auto');
     expect(config.policies.require_plan_approval).toBe(true);
     expect(config.policies.max_fix_loops).toBe(3);
@@ -25,7 +25,7 @@ describe('Config and Profiles', () => {
 
   it('loads all builtin profiles with auto agent defaults', () => {
     const config = structuredClone(DEFAULT_CONFIG);
-    const profiles = ['simple', 'standard', 'secure', 'full'];
+    const profiles = ['simple', 'standard', 'secure', 'full', 'ecc'];
 
     for (const name of profiles) {
       const profile = loadProfile(name, config);
@@ -57,9 +57,12 @@ describe('Config and Profiles', () => {
 
   it('initializes configuration with profiles and config.yml', () => {
     const { initConfiguration } = require('../src/config');
-    const res = initConfiguration({ targetEnv: 'gemini', linkBin: false });
+    const res = initConfiguration({ targetEnv: 'gemini', linkBin: false, force: true });
     expect(res.configPath).toContain('.gemini');
     expect(require('fs').existsSync(res.configPath)).toBe(true);
+    const content = require('fs').readFileSync(res.configPath, 'utf8');
+    expect(content).toContain('profile: ecc');
+    expect(content).toContain('ecc:');
   });
 
   it('recovers with default config when config file has invalid YAML syntax', () => {
@@ -73,7 +76,7 @@ describe('Config and Profiles', () => {
     const config = loadConfig(tmpFile);
     expect(config.version).toBe(1);
     expect(config.orca.command).toBe('orca');
-    expect(config.defaults.profile).toBe('full');
+    expect(config.defaults.profile).toBe('ecc');
 
     try {
       fs.unlinkSync(tmpFile);

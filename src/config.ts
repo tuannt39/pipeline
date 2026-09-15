@@ -9,7 +9,8 @@ export { validatePipelineConfig, safeValidatePipelineConfig } from './schemas';
 
 export function hasCommand(cmd: string): boolean {
   try {
-    execSync(`which ${cmd}`, { stdio: 'ignore' });
+    const checkCmd = process.platform === 'win32' ? `where ${cmd}` : `which ${cmd}`;
+    execSync(checkCmd, { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -36,7 +37,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     create_worktree_only_when_requested: true,
   },
   defaults: {
-    profile: 'full',
+    profile: 'ecc',
     agent: 'auto',
     timeout_ms: 3600000,
     max_retries: 2,
@@ -151,7 +152,7 @@ workspace:
   create_worktree_only_when_requested: true
 
 defaults:
-  profile: full
+  profile: ecc
   agent: ${defaultAgent}
   timeout_ms: 3600000
   max_retries: 2
@@ -174,6 +175,7 @@ profiles:
   standard: ${profilesDir}/standard.yml
   secure: ${profilesDir}/secure.yml
   full: ${profilesDir}/full.yml
+  ecc: ${profilesDir}/ecc.yml
 `;
     fs.writeFileSync(configPath, configYaml, 'utf8');
 

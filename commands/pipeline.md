@@ -23,8 +23,8 @@ When the user invokes `/pipeline <objective>` or asks to run a pipeline:
    - Remind the user they can track status with `pipeline status`.
 
 Supported subcommands:
-- `/pipeline start [--profile <profile>] "<objective>"`: Launch pipeline (profiles: `full`, `ecc`, `standard`, `secure`, `simple`).
-- `/pipeline --profile ecc "<objective>"`: Launch ECC profile in single AGY session with user confirmation gate before plan creation.
+- `/pipeline start [--profile <profile>] "<objective>"`: Launch pipeline (default profile: `ecc`, other profiles: `full`, `standard`, `secure`, `simple`).
+- `/pipeline "<objective>"`: Launch ECC profile (default) in single AGY session or Orca runner with user confirmation gate and 360° master plan.
 - `/pipeline approve [id]`: Approve plan artifact and advance to implementation stage.
 - `/pipeline doctor`: Run health check of Orca, agents, and configuration.
 - `/pipeline init`: Initialize `~/.gemini/config/pipeline/config.yml` and profiles.
@@ -33,11 +33,12 @@ Supported subcommands:
 - `/pipeline logs <id>`: Inspect generated artifacts in `.agents/pipelines/`.
 - `/pipeline stop <id>`: Abort a running pipeline.
 
-## Plan Approval Gate (Mandatory Hard Stop)
+## Plan Approval Gate & 360° Master Plan
 When executing workflows that include approval gates:
+- In `ecc` profile (Default): Halts after `architecture-review` (Stage 8) completes **before creating `plan.md`**.
+  `⏸️ **Awaiting Plan approval** — Please respond to continue.`
+  Upon user approval, Stage 9 generates a complete 360° **Master Engineering Plan** (`plan.md`) integrating Part I (Stages 1–8 findings) and Part II (Stages 9–20 execution roadmap).
 - In `full` and `standard` profiles: Halts after `plan` completes before implementation.
-- In `ecc` profile: Halts after `architecture-review` completes **before creating `plan.md`**.
-`⏸️ **Awaiting Plan approval** — Please respond to continue.`
 Implementation does not proceed until the user approves via chat or by executing `pipeline approve <id>`.
 
 
