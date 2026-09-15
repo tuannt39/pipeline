@@ -12,7 +12,7 @@ describe('PipelineController and Fix Loop', () => {
   it('handles review failure and triggers fix loop within max_fix_loops', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-test-'));
     const config = structuredClone(DEFAULT_CONFIG);
-    config.artifacts.root = path.join(tempDir, '.omp', 'pipelines');
+    config.artifacts.root = path.join(tempDir, '.pipeline');
     config.policies.max_fix_loops = 2;
 
     let checkCount = 0;
@@ -186,7 +186,7 @@ describe('PipelineController and Fix Loop', () => {
   it('reconciles running stage when artifact contract is satisfied on disk', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-recon-'));
     const config = structuredClone(DEFAULT_CONFIG);
-    config.artifacts.root = path.join(tempDir, '.omp', 'pipelines');
+    config.artifacts.root = path.join(tempDir, '.pipeline');
 
     const client = new OrcaClient({
       execFn: async () => ({ stdout: JSON.stringify({ ok: true }), stderr: '', exitCode: 0 }),
@@ -224,7 +224,7 @@ describe('PipelineController and Fix Loop', () => {
   it('does not advance stage while worker terminal is still active in Orca', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-recon-active-'));
     const config = structuredClone(DEFAULT_CONFIG);
-    config.artifacts.root = path.join(tempDir, '.omp', 'pipelines');
+    config.artifacts.root = path.join(tempDir, '.pipeline');
 
     // Mock client where term_worker_1 is still active and connected
     const client = new OrcaClient({
@@ -298,7 +298,7 @@ describe('PipelineController and Fix Loop', () => {
   it('enforces Plan Approval Gate when plan completes, pauses with waiting_approval, and resumes after approval', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-plan-gate-'));
     const config = structuredClone(DEFAULT_CONFIG);
-    config.artifacts.root = path.join(tempDir, '.omp', 'pipelines');
+    config.artifacts.root = path.join(tempDir, '.pipeline');
     config.policies.require_plan_approval = true;
 
     const client = new OrcaClient({
@@ -353,7 +353,7 @@ describe('PipelineController and Fix Loop', () => {
   it('bypasses approval gate when policies.require_plan_approval is false and stage does not explicitly require approval', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-plan-nogate-'));
     const config = structuredClone(DEFAULT_CONFIG);
-    config.artifacts.root = path.join(tempDir, '.omp', 'pipelines');
+    config.artifacts.root = path.join(tempDir, '.pipeline');
     config.policies.require_plan_approval = false;
 
     const client = new OrcaClient({

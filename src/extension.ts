@@ -165,7 +165,7 @@ export default function (pi: any): void {
       ctx.ui?.notify?.(`Starting Pipeline [${profile}]: "${objective}"`, 'info');
 
       // Spawn runner detached so OMP TUI remains fully interactive and responsive
-      const outLog = path.join(cwd, '.omp', 'pipeline-runner.log');
+      const outLog = path.join(cwd, '.pipeline', 'runner.log');
       fs.mkdirSync(path.dirname(outLog), { recursive: true });
       const outFd = fs.openSync(outLog, 'a');
 
@@ -182,7 +182,7 @@ export default function (pi: any): void {
 
       runnerProcess.unref();
 
-      ctx.ui?.notify?.(`Pipeline runner launched in background. Check \`/pipeline status\` or \`.omp/pipelines/\``, 'info');
+      ctx.ui?.notify?.(`Pipeline runner launched in background. Check \`/pipeline status\` or \`.pipeline/\``, 'info');
     },
   });
 }

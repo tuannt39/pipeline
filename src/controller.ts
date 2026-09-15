@@ -211,19 +211,21 @@ export class PipelineController {
           continue;
         }
 
-        // In non-interactive mode, check Orca messages for approval or wait
+        // In non-interactive mode, check Orca messages for explicit user approval only
         try {
           const delivery = await this.orca.check({
             runId,
             wait: true,
             timeoutMs: 3000,
-            types: ['worker_done', 'escalation', 'question', 'user_approval'],
+            types: ['user_approval'],
           });
 
           if (delivery && delivery.messages && delivery.messages.length > 0) {
             for (const msg of delivery.messages) {
-              if (msg.type === 'user_approval' || /approv|proceed|ok|lgtm/i.test(msg.body || '')) {
-                this.approvePlan(pipelineDir, msg.from || 'orca-user');
+              const sender = (msg.from || '').toLowerCase();
+              const isUserSender = sender === 'user' || sender === 'human' || sender === 'operator' || sender === 'reviewer';
+              if (msg.type === 'user_approval' && (isUserSender || msg.payload?.confirmed === true)) {
+                this.approvePlan(pipelineDir, msg.from || 'user');
                 state = loadState(pipelineDir);
                 onUpdate?.(state);
                 break;

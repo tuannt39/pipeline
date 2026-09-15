@@ -12,6 +12,7 @@ describe('Config and Profiles', () => {
     expect(config.defaults.agent).toBe('auto');
     expect(config.policies.require_plan_approval).toBe(true);
     expect(config.policies.max_fix_loops).toBe(3);
+    expect(config.artifacts.root).toBe('.pipeline');
   });
 
   it('detects default agent harness based on environment or availability', () => {
@@ -62,6 +63,7 @@ describe('Config and Profiles', () => {
     expect(require('fs').existsSync(res.configPath)).toBe(true);
     const content = require('fs').readFileSync(res.configPath, 'utf8');
     expect(content).toContain('profile: ecc');
+    expect(content).toContain('root: .pipeline');
     expect(content).toContain('ecc:');
   });
 

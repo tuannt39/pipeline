@@ -173,7 +173,7 @@ describe('Zod Schemas and Runtime Validation', () => {
         dispatch_id: 'disp_456',
         outcome: 'succeeded' as const,
         files_modified: 'src/cli.ts',
-        report_path: '.agents/pipelines/pipe-1/implementation.md',
+        report_path: '.pipeline/pipe-1/implementation.md',
       };
       const res = OrcaWorkerDonePayloadSchema.safeParse(payload);
       expect(res.success).toBe(true);

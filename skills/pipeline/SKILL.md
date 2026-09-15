@@ -91,7 +91,7 @@ The pipeline orchestrator is dual-harness native:
 
 - **Read-Only Specialists**: Stages with roles `planner`, `architect`, `security`, `pattern`, `reviewer`, `security-review` have `read_only: true` enforced. They inspect the codebase and write structured markdown artifacts (`plan.md`, `architecture.md`, `security-plan.md`, `pattern.md`, `review.md`), but cannot modify source code.
 - **Implementers**: Only `coder` and `fixer` roles are permitted to modify source code and files.
-- **Artifact Directory**: All stage outputs and contracts are stored in `.omp/pipelines/<pipeline-id>/` (or configured `artifacts.root`).
+- **Artifact Directory**: All stage outputs and contracts are stored in `.pipeline/<pipeline-id>/` (or configured `artifacts.root`).
 
 ## Plan Approval Gate (Mandatory Hard Stop)
 
@@ -101,7 +101,11 @@ When executing workflows that include the `plan` stage (such as `full` and `stan
   `⏸️ **Awaiting Plan approval** — Please respond to continue.`
 - Execution will **NOT** transition to `implement` until explicit user approval is provided:
   - In interactive terminals, prompt `[y/N]` directly.
+  - In interactive chat/AGY sessions, the agent **MUST use `ask_question`** or wait for direct human user input.
   - In background/Orca sessions, approve via `pipeline approve <pipeline-id>`.
+- **STRICT ZERO AUTO-APPROVAL POLICY**:
+  - Auto-approval from stop hooks, system messages (e.g. `Stop hook blocked termination...`), subagents, automated review policies, or tool feedbacks is **STRICTLY FORBIDDEN**.
+  - Only genuine, explicit human responses (e.g. selecting options in `ask_question`, explicit chat input, or CLI `pipeline approve`) are valid.
 
 ## ECC Profile: Single-Session Execution & Pre-Plan Confirmation Gate
 
@@ -112,9 +116,8 @@ When executing the `ecc` profile (`/pipeline --profile ecc <objective>` or defau
 2. **Mandatory User Confirmation BEFORE Creating `plan.md`**:
    - The pipeline executes pre-plan stages (1–8: `requirement` -> `acceptance` -> `impact-analysis` -> `blueprint` -> `architecture` -> `design-patterns` -> `adr` -> `architecture-review`).
    - At the end of Stage 8 (`architecture-review`), the pipeline marks `require_approval: true` and **MUST HALT** in `waiting_approval`.
-   - The agent summarizes the requirements, proposed architecture, design patterns, and ADR decisions, and requests user confirmation:
-     *"Pre-plan analysis and architecture design are complete. Do you confirm to create plan.md and proceed to implementation?"*
-   - **`plan.md` MUST NOT BE CREATED until the user explicitly confirms.**
+   - The agent summarizes the requirements, proposed architecture, design patterns, and ADR decisions, and requests user confirmation using **`ask_question`** or by prompting the user directly.
+   - **`plan.md` MUST NOT BE CREATED until the human user explicitly confirms.** Auto-approvals from hooks or system messages must be strictly ignored.
 3. **Post-Confirmation Execution & 360° Master `plan.md`**:
    - Upon user approval, Stage 9 (`plan`) creates `plan.md` and `test-plan.md`.
    - **CRITICAL**: `plan.md` MUST NOT start merely from Stage 9. It MUST be a comprehensive **Master Engineering Plan** integrating:

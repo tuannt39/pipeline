@@ -44,7 +44,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     status_interval_ms: 180000,
   },
   artifacts: {
-    root: '.agents/pipelines',
+    root: '.pipeline',
   },
   policies: {
     require_plan_before_implementation: true,
@@ -87,6 +87,8 @@ export function findConfigFile(customPath?: string, cwd: string = process.cwd())
   const agyCandidates = [
     path.join(cwd, '.pipeline', 'config.yml'),
     path.join(cwd, '.pipeline', 'config.yaml'),
+    path.join(os.homedir(), '.pipeline', 'config.yml'),
+    path.join(os.homedir(), '.pipeline', 'config.yaml'),
     path.join(cwd, '.agents', 'pipeline', 'config.yml'),
     path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml'),
     path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yaml'),
@@ -101,6 +103,8 @@ export function findConfigFile(customPath?: string, cwd: string = process.cwd())
   const ompCandidates = [
     path.join(cwd, '.pipeline', 'config.yml'),
     path.join(cwd, '.pipeline', 'config.yaml'),
+    path.join(os.homedir(), '.pipeline', 'config.yml'),
+    path.join(os.homedir(), '.pipeline', 'config.yaml'),
     path.join(cwd, '.omp', 'pipeline', 'config.yml'),
     path.join(cwd, '.omp', 'pipeline', 'config.yaml'),
     path.join(os.homedir(), '.omp', 'pipeline', 'config.yml'),
@@ -145,7 +149,7 @@ export function initConfiguration(options?: {
     fs.mkdirSync(profilesDir, { recursive: true });
 
     const defaultAgent = isAgy ? 'agy' : 'omp';
-    const artifactsRoot = isAgy ? '.agents/pipelines' : '.omp/pipelines';
+    const artifactsRoot = '.pipeline';
 
     const configYaml = `version: 1
 

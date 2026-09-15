@@ -1,6 +1,6 @@
-# OMP Pipeline Orchestrator
+# Pipeline Orchestrator
 
-A thin, robust **Pipeline Orchestrator** for [Oh My Pi (OMP)](https://github.com/can1357/oh-my-pi) leveraging [Orca Native Orchestration](https://github.com/stablyai/orca).
+A thin, robust **Pipeline Orchestrator** with dual-harness support for [Google Antigravity (AGY)](https://github.com/google-deepmind/antigravity) and [Oh My Pi (OMP)](https://github.com/can1357/oh-my-pi), leveraging [Orca Native Orchestration](https://github.com/stablyai/orca).
 
 Instead of running an ad-hoc custom scheduler or managing processes manually, the pipeline orchestrator uses **Orca** as the sole worker lifecycle authority (`Run` → `Task` → `Dispatch` / `worker-start` → `check --wait` → `worker_done`).
 
@@ -22,8 +22,8 @@ Instead of running an ad-hoc custom scheduler or managing processes manually, th
 │                                                           │
 │  • Config & Profiles (simple, standard, secure, full)     │
 │  • DAG Resolution & Ready Stages                          │
-│  • State: .omp/pipelines/<id>/state.json                  │
-│  • Artifact Contract: .omp/pipelines/<id>/*.md            │
+│  • State: .pipeline/<id>/state.json                       │
+│  • Artifact Contract: .pipeline/<id>/*.md                 │
 │  • Policies: Review FAIL -> Fix -> Test -> Review loop    │
 └───────────────────────────┬───────────────────────────────┘
                             │ Orca CLI Verbs
@@ -36,13 +36,13 @@ Instead of running an ad-hoc custom scheduler or managing processes manually, th
 └───────────────┬────────────────┬────────────────┬─────────┘
                 │                │                │
                 ▼                ▼                ▼
-             OMP-Plan        OMP-Architect    OMP-Implement
-           (read_only)        (read_only)        (write)
+             Plan           Architect        Implement
+            (read_only)        (read_only)        (write)
                 │                │                │
                 └──────────┬─────┴────────────────┘
                            ▼
               Read & Write Artifact Contracts:
-              .omp/pipelines/<pipeline-id>/
+              .pipeline/<pipeline-id>/
 ```
 
 ---
@@ -108,7 +108,7 @@ defaults:
   max_retries: 2
 
 artifacts:
-  root: .agents/pipelines # (.omp/pipelines for OMP)
+  root: .pipeline
 
 policies:
   require_plan_before_implementation: true

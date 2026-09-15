@@ -18,7 +18,7 @@ The architecture enforces strict role boundaries, deterministic acyclic stage de
 │  • Extension: src/extension.ts                  • Manifest: gemini-ext.json │
 │  • Interactive Slash: /pipeline                 • Skill: skills/pipeline/   │
 │  • Command CLI: omp                             • Command: commands/pipeline│
-│  • Worktree: .omp/pipelines/                    • Worktree: .agents/pipeline│
+│  • Artifacts: .pipeline/                        • Artifacts: .pipeline/     │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │ Spawns CLI invocation / Subagent dispatch
                                        ▼
@@ -57,7 +57,7 @@ The architecture enforces strict role boundaries, deterministic acyclic stage de
 │  • Test: test-automator (Verify Mode) -> test.md                            │
 │  • Review: code-reviewer (Independent Audit) -> review.md                   │
 │                                                                             │
-│  Artifact File Contracts: .agents/pipelines/<pipeline-id>/*.md              │
+│  Artifact File Contracts: .pipeline/<pipeline-id>/*.md                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 

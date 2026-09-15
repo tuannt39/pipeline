@@ -16,7 +16,7 @@ describe('Prompt Compiler', () => {
     pipelineId: 'pipe-test-001',
     objective: 'Implement OAuth login',
     workspace: '/test/workspace',
-    pipelineDir: '/test/workspace/.omp/pipelines/pipe-test-001',
+    pipelineDir: '/test/workspace/.pipeline/pipe-test-001',
     taskId: 'task-123',
     dispatchId: 'disp-456',
     stage: { id: 'plan', role: 'planner' },

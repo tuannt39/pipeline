@@ -96,10 +96,10 @@ export const PipelineConfigSchema = z
       }),
     artifacts: z
       .object({
-        root: z.string().default('.agents/pipelines'),
+        root: z.string().default('.pipeline'),
       })
       .passthrough()
-      .default({ root: '.agents/pipelines' }),
+      .default({ root: '.pipeline' }),
     policies: PipelinePoliciesSchema.default({
       require_plan_before_implementation: true,
       require_plan_approval: true,

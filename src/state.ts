@@ -14,11 +14,11 @@ export function generatePipelineId(prefix: string = 'pipe'): string {
   return `${prefix}-${yyyy}${mm}${dd}-${hh}${min}${sec}-${rand}`;
 }
 
-export function resolvePipelineRoot(rootDir: string = '.omp/pipelines', cwd: string = process.cwd()): string {
+export function resolvePipelineRoot(rootDir: string = '.pipeline', cwd: string = process.cwd()): string {
   return path.resolve(cwd, rootDir);
 }
 
-export function getPipelineDir(pipelineId: string, rootDir: string = '.omp/pipelines', cwd: string = process.cwd()): string {
+export function getPipelineDir(pipelineId: string, rootDir: string = '.pipeline', cwd: string = process.cwd()): string {
   return path.join(resolvePipelineRoot(rootDir, cwd), pipelineId);
 }
 
@@ -74,7 +74,7 @@ export function loadState(pipelineDir: string): PipelineState {
   return JSON.parse(content) as PipelineState;
 }
 
-export function listPipelines(rootDir: string = '.omp/pipelines', cwd: string = process.cwd()): Array<{ id: string; state: PipelineState; dir: string }> {
+export function listPipelines(rootDir: string = '.pipeline', cwd: string = process.cwd()): Array<{ id: string; state: PipelineState; dir: string }> {
   const root = resolvePipelineRoot(rootDir, cwd);
   if (!fs.existsSync(root)) return [];
 

@@ -1,4 +1,5 @@
 node_modules/
+.pipeline/
 .omp/pipelines/
 .omp/pipeline-runner.log
 *.tmp*

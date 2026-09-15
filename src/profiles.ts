@@ -530,6 +530,8 @@ export function resolveProfilePath(profileName: string, config: PipelineConfig, 
 
   candidates.push(path.join(cwd, '.pipeline', 'profiles', `${profileName}.yml`));
   candidates.push(path.join(cwd, '.pipeline', 'profiles', `${profileName}.yaml`));
+  candidates.push(path.join(os.homedir(), '.pipeline', 'profiles', `${profileName}.yml`));
+  candidates.push(path.join(os.homedir(), '.pipeline', 'profiles', `${profileName}.yaml`));
   candidates.push(path.join(cwd, '.agents', 'pipeline', 'profiles', `${profileName}.yml`));
   candidates.push(path.join(cwd, '.agents', 'pipeline', 'profiles', `${profileName}.yaml`));
   candidates.push(path.join(cwd, '.omp', 'pipeline', 'profiles', `${profileName}.yml`));

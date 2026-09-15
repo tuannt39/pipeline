@@ -14,7 +14,7 @@ defaults:
   max_retries: 2
 
 artifacts:
-  root: .omp/pipelines
+  root: .pipeline
 
 policies:
   require_plan_before_implementation: true
