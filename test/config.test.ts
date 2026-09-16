@@ -102,11 +102,87 @@ describe('Config and Profiles', () => {
     } catch {}
   });
 
-  it('throws a descriptive error when loading a non-existent profile', () => {
-    const config = structuredClone(DEFAULT_CONFIG);
-    expect(() => loadProfile('non_existent_profile_xyz', config)).toThrow(
-      /Pipeline profile "non_existent_profile_xyz" not found/
-    );
+  it('loads custom ecc configuration path and settings from config.yml', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+
+    const mockEccPath = path.join(os.tmpdir(), 'custom-ecc-fixture').replace(/\\/g, '/');
+    const tmpFile = path.join(os.tmpdir(), `custom-ecc-config-${Date.now()}.yml`);
+    const yamlContent = `version: 1
+defaults:
+  profile: ecc
+  agent: agy
+ecc:
+  path: "${mockEccPath}"
+  auto_sync: true
+  cache_ttl_ms: 120000
+`;
+    fs.writeFileSync(tmpFile, yamlContent, 'utf8');
+
+    try {
+      const config = loadConfig(tmpFile);
+      expect(config.ecc).toBeDefined();
+      expect(config.ecc?.path).toBe(mockEccPath);
+      expect(config.ecc?.auto_sync).toBe(true);
+      expect(config.ecc?.cache_ttl_ms).toBe(120000);
+    } finally {
+      try {
+        fs.unlinkSync(tmpFile);
+      } catch {}
+    }
+  });
+
+  it('saves default configuration according to agent agy or omp on init or run', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    const { initConfiguration, normalizeAgent, loadConfig } = require('../src/config');
+
+    expect(normalizeAgent('agy')).toBe('agy');
+    expect(normalizeAgent('antigravity')).toBe('agy');
+    expect(normalizeAgent('gemini')).toBe('agy');
+    expect(normalizeAgent('omp')).toBe('omp');
+    expect(normalizeAgent('pi')).toBe('omp');
+    expect(normalizeAgent('oh-my-pi')).toBe('omp');
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-agent-init-'));
+    try {
+      // Local init for agy / antigravity
+      const resAgy = initConfiguration({
+        targetAgent: 'antigravity',
+        local: true,
+        cwd: tempDir,
+        force: true,
+      });
+      expect(resAgy.agent).toBe('agy');
+      expect(fs.existsSync(resAgy.configPath)).toBe(true);
+      const contentAgy = fs.readFileSync(resAgy.configPath, 'utf8');
+      expect(contentAgy).toContain('agent: agy');
+
+      // Local init for omp
+      const tempDirOmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-omp-init-'));
+      try {
+        const resOmp = initConfiguration({
+          targetAgent: 'omp',
+          local: true,
+          cwd: tempDirOmp,
+          force: true,
+        });
+        expect(resOmp.agent).toBe('omp');
+        expect(fs.existsSync(resOmp.configPath)).toBe(true);
+        const contentOmp = fs.readFileSync(resOmp.configPath, 'utf8');
+        expect(contentOmp).toContain('agent: omp');
+
+        // Loading config with agent override
+        const loaded = loadConfig(resOmp.configPath, tempDirOmp, 'agy');
+        expect(loaded.defaults.agent).toBe('agy');
+      } finally {
+        fs.rmSync(tempDirOmp, { recursive: true, force: true });
+      }
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
 

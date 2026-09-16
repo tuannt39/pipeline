@@ -38,6 +38,8 @@ export const StageDefinitionSchema = z
     next: z.array(z.string()).optional(),
     skills: z.array(z.string()).optional(),
     ecc_skills: z.array(z.string()).optional(),
+    ecc_rules: z.array(z.string()).optional(),
+    ecc_workflows: z.array(z.string()).optional(),
     on: z.record(z.string(), z.string().optional()).optional(),
   })
   .passthrough();

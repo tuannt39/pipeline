@@ -128,11 +128,14 @@ profiles:
 
 Run `pipeline init` anytime to scaffold configuration, copy default profiles, and link the global CLI binary:
 ```bash
-# Initialize for Antigravity
-pipeline init --gemini
+# Initialize for Antigravity (AGY)
+pipeline init --agy # or --antigravity
 
-# Initialize for OMP
+# Initialize for Oh-My-Pi (OMP)
 pipeline init --omp
+
+# Initialize locally within project (.pipeline/config.yml)
+pipeline init --local --agent agy
 ```
 
 ---

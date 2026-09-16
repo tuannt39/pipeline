@@ -17,7 +17,21 @@ export function hasCommand(cmd: string): boolean {
   }
 }
 
+export function normalizeAgent(agent?: string): 'agy' | 'omp' {
+  if (!agent) return 'agy';
+  const clean = agent.trim().toLowerCase();
+  if (clean === 'agy' || clean === 'antigravity' || clean === 'gemini') {
+    return 'agy';
+  }
+  if (clean === 'omp' || clean === 'pi' || clean === 'oh-my-pi') {
+    return 'omp';
+  }
+  return clean === 'omp' ? 'omp' : 'agy';
+}
+
 export function detectDefaultAgent(): 'agy' | 'omp' {
+  const envAgent = process.env.PIPELINE_AGENT || process.env.AGENT;
+  if (envAgent) return normalizeAgent(envAgent);
   if (process.env.ANTIGRAVITY_AGENT === '1') return 'agy';
   if (process.env.OMP_WORKTREE_DIR) return 'omp';
   if (hasCommand('agy')) return 'agy';
@@ -123,23 +137,40 @@ export function findConfigFile(customPath?: string, cwd: string = process.cwd())
   return null;
 }
 
-export function initConfiguration(options?: {
+export interface InitConfigOptions {
+  targetAgent?: string;
   targetEnv?: 'gemini' | 'omp';
   force?: boolean;
   linkBin?: boolean;
-}): {
+  local?: boolean;
+  cwd?: string;
+  eccPath?: string;
+}
+
+export function initConfiguration(options?: InitConfigOptions): {
   configPath: string;
   created: boolean;
   linkedBin?: string;
+  agent: 'agy' | 'omp';
 } {
-  const isAgy =
-    options?.targetEnv === 'gemini' ||
-    (options?.targetEnv === undefined &&
-      (detectDefaultAgent() === 'agy' || fs.existsSync(path.join(os.homedir(), '.gemini'))));
+  let resolvedAgent: 'agy' | 'omp';
+  if (options?.targetAgent) {
+    resolvedAgent = normalizeAgent(options.targetAgent);
+  } else if (options?.targetEnv) {
+    resolvedAgent = options.targetEnv === 'omp' ? 'omp' : 'agy';
+  } else {
+    resolvedAgent = detectDefaultAgent();
+  }
 
-  const baseDir = isAgy
+  const isAgy = resolvedAgent === 'agy';
+  const cwd = options?.cwd || process.cwd();
+
+  const baseDir = options?.local
+    ? path.join(cwd, '.pipeline')
+    : isAgy
     ? path.join(os.homedir(), '.gemini', 'config', 'pipeline')
     : path.join(os.homedir(), '.omp', 'pipeline');
+
   const configPath = path.join(baseDir, 'config.yml');
   const profilesDir = path.join(baseDir, 'profiles');
 
@@ -148,8 +179,8 @@ export function initConfiguration(options?: {
   if (created) {
     fs.mkdirSync(profilesDir, { recursive: true });
 
-    const defaultAgent = isAgy ? 'agy' : 'omp';
     const artifactsRoot = '.pipeline';
+    const eccDir = options?.eccPath || process.env.ECC_DIR || process.env.ECC_PATH || '';
 
     const configYaml = `version: 1
 
@@ -162,7 +193,7 @@ workspace:
 
 defaults:
   profile: ecc
-  agent: ${defaultAgent}
+  agent: ${resolvedAgent}
   timeout_ms: 3600000
   max_retries: 2
   status_interval_ms: 180000
@@ -187,7 +218,7 @@ profiles:
   ecc: ${profilesDir}/ecc.yml
 
 ecc:
-  path: "${process.env.ECC_DIR || process.env.ECC_PATH || ''}"
+  path: "${eccDir}"
   auto_sync: false
 `;
     fs.writeFileSync(configPath, configYaml, 'utf8');
@@ -228,35 +259,45 @@ ecc:
     }
   }
 
-  return { configPath, created, linkedBin };
+  return { configPath, created, linkedBin, agent: resolvedAgent };
 }
 
-export function ensureConfigExists(cwd: string = process.cwd()): string {
-  const isAgy = detectDefaultAgent() === 'agy';
-  const geminiConfig = path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml');
+export function ensureConfigExists(cwd: string = process.cwd(), requestedAgent?: string): string {
+  const targetAgent = requestedAgent ? normalizeAgent(requestedAgent) : detectDefaultAgent();
+  const isAgy = targetAgent === 'agy';
+  const expectedHomeConfig = isAgy
+    ? path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml')
+    : path.join(os.homedir(), '.omp', 'pipeline', 'config.yml');
 
-  if (isAgy && !fs.existsSync(geminiConfig)) {
-    const res = initConfiguration({ targetEnv: 'gemini' });
-    return res.configPath;
+  if (fs.existsSync(expectedHomeConfig)) {
+    return expectedHomeConfig;
   }
 
   const existing = findConfigFile(undefined, cwd);
   if (existing) return existing;
 
-  const res = initConfiguration();
+  const res = initConfiguration({ targetAgent, cwd });
   return res.configPath;
 }
 
-export function loadConfig(customPath?: string, cwd: string = process.cwd()): PipelineConfig {
+export function loadConfig(
+  customPath?: string,
+  cwd: string = process.cwd(),
+  requestedAgent?: string
+): PipelineConfig {
   let configFile: string | null = null;
   if (customPath) {
     configFile = findConfigFile(customPath, cwd);
   } else {
-    configFile = ensureConfigExists(cwd);
+    configFile = ensureConfigExists(cwd, requestedAgent);
   }
 
   if (!configFile || !fs.existsSync(configFile)) {
-    return structuredClone(DEFAULT_CONFIG);
+    const fallback = structuredClone(DEFAULT_CONFIG);
+    if (requestedAgent) {
+      fallback.defaults.agent = normalizeAgent(requestedAgent);
+    }
+    return fallback;
   }
 
   try {
@@ -276,6 +317,9 @@ export function loadConfig(customPath?: string, cwd: string = process.cwd()): Pi
       defaults: {
         ...DEFAULT_CONFIG.defaults,
         ...(parsed.defaults || {}),
+        agent: requestedAgent
+          ? normalizeAgent(requestedAgent)
+          : parsed.defaults?.agent || DEFAULT_CONFIG.defaults.agent,
       },
       artifacts: {
         ...DEFAULT_CONFIG.artifacts,
@@ -288,6 +332,10 @@ export function loadConfig(customPath?: string, cwd: string = process.cwd()): Pi
       profiles: {
         ...DEFAULT_CONFIG.profiles,
         ...(parsed.profiles || {}),
+      },
+      ecc: {
+        ...DEFAULT_CONFIG.ecc,
+        ...(parsed.ecc || {}),
       },
     };
 

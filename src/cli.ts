@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs';
-import { findConfigFile, hasCommand, detectDefaultAgent, loadConfig, initConfiguration } from './config';
+import { findConfigFile, hasCommand, detectDefaultAgent, normalizeAgent, loadConfig, initConfiguration } from './config';
+import { defaultEccAdapter } from './ecc-adapter';
 import { loadProfile } from './profiles';
 import { PipelineController } from './controller';
 import { getPipelineDir, listPipelines, loadState, saveState } from './state';
@@ -11,6 +12,15 @@ export function formatStatus(state: PipelineState): string {
   lines.push(`Pipeline:  ${state.id}`);
   lines.push(`Objective: ${state.objective}`);
   lines.push(`Profile:   ${state.profile}`);
+
+  const eccStatus = defaultEccAdapter.getEccStatusSummary();
+  const eccLabel = eccStatus.configured && eccStatus.valid
+    ? `${eccStatus.path} (external: ${eccStatus.skillsCount} skills, ${eccStatus.rulesCount} rules, ${eccStatus.workflowsCount} workflows)`
+    : eccStatus.configured
+    ? `${eccStatus.path} (inaccessible - fallback to built-in)`
+    : `Built-in offline methodologies (${eccStatus.skillsCount} core skills, 7 specialist personas)`;
+  lines.push(`ECC:       ${eccLabel}`);
+
   if (state.status === 'waiting_approval') {
     lines.push(`Status:    WAITING_APPROVAL ⏸️ (Awaiting user plan approval)`);
     lines.push(`Notice:    Run 'pipeline approve ${state.id}' to continue implementation.`);
@@ -65,30 +75,51 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
       console.log(`Antigravity CLI (agy): ${hasAgy ? '✓ Found' : '○ Not installed'}`);
       console.log(`Oh-My-Pi CLI (omp):    ${hasOmp ? '✓ Found' : '○ Not installed'}`);
       console.log(`Active Harness Agent:  ${activeAgent.toUpperCase()} (configured default: ${config.defaults.agent})`);
-      console.log(`Config File:           ${findConfigFile(undefined, cwd) || 'Using defaults'}`);
       console.log(`Artifacts Root:        ${config.artifacts.root}`);
+
+      const eccStatus = defaultEccAdapter.getEccStatusSummary();
+      if (eccStatus.configured) {
+        if (eccStatus.valid) {
+          console.log(`ECC Knowledge Path:    ${eccStatus.path} (✓ Accessible - external JIT enabled)`);
+          console.log(`  ├─ Discovered Skills:    ${eccStatus.skillsCount}`);
+          console.log(`  ├─ Discovered Rules:     ${eccStatus.rulesCount}`);
+          console.log(`  ├─ Discovered Workflows: ${eccStatus.workflowsCount}`);
+          console.log(`  └─ Discovered Prompts:   ${eccStatus.promptsCount}`);
+        } else {
+          console.log(`ECC Knowledge Path:    ${eccStatus.path} (✗ Directory not found, falling back to built-in)`);
+        }
+      } else {
+        console.log(`ECC Knowledge Path:    Not configured (Using built-in offline methodologies: ${eccStatus.skillsCount} core skills, 7 specialist personas)`);
+      }
       break;
     }
     case 'init': {
-      let targetEnv: 'gemini' | 'omp' | undefined;
+      let targetAgent: string | undefined;
       let force = false;
+      let local = false;
 
       for (let i = 1; i < argv.length; i++) {
-        if (argv[i] === '--force' || argv[i] === '-f') {
+        const arg = argv[i];
+        if (arg === '--force' || arg === '-f') {
           force = true;
-        } else if (argv[i] === '--gemini' || argv[i] === '--agy') {
-          targetEnv = 'gemini';
-        } else if (argv[i] === '--omp') {
-          targetEnv = 'omp';
+        } else if (arg === '--local' || arg === '-l') {
+          local = true;
+        } else if (arg === '--gemini' || arg === '--agy' || arg === '--antigravity') {
+          targetAgent = 'agy';
+        } else if (arg === '--omp' || arg === '--pi') {
+          targetAgent = 'omp';
+        } else if ((arg === '--agent' || arg === '-a') && i + 1 < argv.length) {
+          targetAgent = argv[++i];
         }
       }
 
-      const res = initConfiguration({ targetEnv, force, linkBin: true });
+      const res = initConfiguration({ targetAgent, force, local, linkBin: true, cwd });
       console.log('Pipeline Initialized:');
       console.log('------------------------------------------------------------');
-      console.log(`Config file:  ${res.configPath} (${res.created ? 'created' : 'already exists'})`);
+      console.log(`Default Agent: ${res.agent.toUpperCase()} (${res.agent === 'agy' ? 'Antigravity' : 'Oh-My-Pi'})`);
+      console.log(`Config file:   ${res.configPath} (${res.created ? 'created' : 'already exists'})`);
       if (res.linkedBin) {
-        console.log(`CLI launcher: ${res.linkedBin}`);
+        console.log(`CLI launcher:  ${res.linkedBin}`);
       }
       console.log(`To customize settings, edit ${res.configPath}`);
       break;
@@ -96,6 +127,7 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
     case 'start': {
       let profileName = config.defaults.profile;
       let worktree = config.workspace.default;
+      let agentOverride: string | undefined;
       const objectiveParts: string[] = [];
 
       for (let i = 1; i < argv.length; i++) {
@@ -104,18 +136,34 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
           profileName = argv[++i];
         } else if (arg === '--worktree' && i + 1 < argv.length) {
           worktree = argv[++i] as any;
+        } else if ((arg === '--agent' || arg === '-a') && i + 1 < argv.length) {
+          agentOverride = argv[++i];
+        } else if (arg === '--agy' || arg === '--antigravity') {
+          agentOverride = 'agy';
+        } else if (arg === '--omp') {
+          agentOverride = 'omp';
         } else {
           objectiveParts.push(arg);
         }
       }
 
+      if (agentOverride) {
+        config.defaults.agent = normalizeAgent(agentOverride);
+      }
+
       const objective = objectiveParts.join(' ').trim();
       if (!objective) {
-        console.error('Error: Objective is required. Usage: pipeline start [--profile <profile>] <objective>');
+        console.error('Error: Objective is required. Usage: pipeline start [--profile <profile>] [--agent <agent>] <objective>');
         process.exit(1);
       }
 
-      console.log(`Starting pipeline with profile "${profileName}"...`);
+      console.log(`Starting pipeline with profile "${profileName}" on agent "${config.defaults.agent.toUpperCase()}"...`);
+      const eccStatus = defaultEccAdapter.getEccStatusSummary();
+      const eccInfo = eccStatus.configured && eccStatus.valid
+        ? `${eccStatus.path} (external: ${eccStatus.skillsCount} skills, ${eccStatus.rulesCount} rules, ${eccStatus.workflowsCount} workflows)`
+        : 'Built-in offline methodologies (8 core skills, 7 specialist personas)';
+      console.log(`[ECC Active] ${eccInfo}`);
+
       const controller = new PipelineController({ config, cwd });
       const finalState = await controller.runPipeline({
         objective,
@@ -324,9 +372,9 @@ function printHelp(): void {
 Pipeline Orchestrator (Antigravity & OMP, powered by Orca native orchestration)
 
 USAGE:
-  pipeline init [--gemini|--omp] [--force]
+  pipeline init [--agy|--antigravity|--omp|--agent <agent>] [--local] [--force]
   pipeline doctor
-  pipeline start [--profile <profile>] [--worktree <worktree>] <objective>
+  pipeline start [--profile <profile>] [--agent <agy|omp>] [--worktree <worktree>] <objective>
   pipeline approve [<id>] [--resume]
   pipeline resume [<id>]
   pipeline watch [<id>] [--interval <sec>]

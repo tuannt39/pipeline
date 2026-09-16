@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import type { StageEccItem, StageEccSummary, EccStatusSummary, StageDefinition } from './types';
+export type { StageEccItem, StageEccSummary, EccStatusSummary } from './types';
 
 export interface EccCatalogItem {
   name: string;
@@ -95,6 +97,13 @@ export class EccKnowledgeAdapter {
     this.cacheTtlMs = options?.cacheTtlMs ?? 60000;
   }
 
+  public setEccPath(explicitPath?: string): void {
+    this.eccPath = this.resolveEccPath(explicitPath);
+    this.cache.clear();
+    this.catalog.clear();
+    this.initialized = false;
+  }
+
   private resolveEccPath(explicitPath?: string): string | undefined {
     const candidate =
       explicitPath ||
@@ -125,6 +134,84 @@ export class EccKnowledgeAdapter {
     return this.eccPath;
   }
 
+  /**
+   * Direct O(1) path resolver for skills in external ECC directory
+   */
+  public resolveSkillFilePath(skillName: string): string | undefined {
+    if (!this.eccPath) return undefined;
+    const cleanName = skillName.trim();
+    const candidates = [
+      path.join(this.eccPath, 'skills', cleanName, 'SKILL.md'),
+      path.join(this.eccPath, 'skills', `${cleanName}.md`),
+      path.join(this.eccPath, 'skills', cleanName, 'README.md'),
+      path.join(this.eccPath, 'skills', cleanName.toLowerCase(), 'SKILL.md'),
+      path.join(this.eccPath, 'skills', `${cleanName.toLowerCase()}.md`),
+    ];
+
+    for (const cand of candidates) {
+      try {
+        if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+          return cand;
+        }
+      } catch {
+        // ignore invalid paths
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Direct O(1) path resolver for rules in external ECC directory
+   */
+  public resolveRuleFilePath(ruleRef: string): string | undefined {
+    if (!this.eccPath) return undefined;
+    const cleanRef = ruleRef.trim();
+    const candidates = [
+      path.join(this.eccPath, 'rules', `${cleanRef}.md`),
+      path.join(this.eccPath, 'rules', cleanRef, 'RULE.md'),
+      path.join(this.eccPath, 'rules', cleanRef, 'README.md'),
+      path.join(this.eccPath, 'rules', `${cleanRef.toLowerCase()}.md`),
+      path.join(this.eccPath, 'rules', cleanRef),
+    ];
+
+    for (const cand of candidates) {
+      try {
+        if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+          return cand;
+        }
+      } catch {
+        // ignore invalid paths
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Direct O(1) path resolver for workflows in external ECC directory
+   */
+  public resolveWorkflowFilePath(workflowRef: string): string | undefined {
+    if (!this.eccPath) return undefined;
+    const cleanRef = workflowRef.trim();
+    const candidates = [
+      path.join(this.eccPath, 'workflows', `${cleanRef}.md`),
+      path.join(this.eccPath, 'workflows', `${cleanRef}.workflow.js`),
+      path.join(this.eccPath, 'workflows', workflowRef, 'WORKFLOW.md'),
+      path.join(this.eccPath, 'workflows', cleanRef, 'README.md'),
+      path.join(this.eccPath, 'workflows', cleanRef),
+    ];
+
+    for (const cand of candidates) {
+      try {
+        if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+          return cand;
+        }
+      } catch {
+        // ignore invalid paths
+      }
+    }
+    return undefined;
+  }
+
   public async initialize(): Promise<void> {
     if (this.initialized) return;
     this.catalog.clear();
@@ -151,7 +238,6 @@ export class EccKnowledgeAdapter {
 
         for (const entry of entries) {
           if (entry.isDirectory()) {
-            // Check for SKILL.md or main file
             const skillFile = path.join(fullDirPath, entry.name, 'SKILL.md');
             if (fs.existsSync(skillFile)) {
               this.catalog.set(entry.name.toLowerCase(), {
@@ -160,14 +246,13 @@ export class EccKnowledgeAdapter {
                 path: skillFile,
               });
             } else {
-              // Catalog directory name
               this.catalog.set(entry.name.toLowerCase(), {
                 name: entry.name,
                 category,
                 path: path.join(fullDirPath, entry.name),
               });
             }
-          } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.yml'))) {
+          } else if (entry.isFile() && (entry.name.endsWith('.md') || entry.name.endsWith('.yml') || entry.name.endsWith('.js'))) {
             const baseName = path.parse(entry.name).name.toLowerCase();
             this.catalog.set(baseName, {
               name: baseName,
@@ -183,44 +268,41 @@ export class EccKnowledgeAdapter {
   }
 
   public async getSkillInstruction(skillName: string): Promise<string> {
+    return this.getSkillInstructionSync(skillName);
+  }
+
+  public getSkillInstructionSync(skillName: string): string {
     const key = skillName.toLowerCase().trim();
 
-    // 1. Try reading from external ECC folder if available
-    if (this.eccPath) {
-      if (!this.initialized) {
-        await this.initialize();
+    // 1. Direct O(1) JIT file lookup from external ECC directory
+    const filePath = this.resolveSkillFilePath(skillName) || (this.catalog.get(key)?.path);
+    if (filePath) {
+      const cached = this.cache.get(filePath);
+      const now = Date.now();
+      if (cached && now - cached.timestamp < this.cacheTtlMs) {
+        return cached.content;
       }
 
-      const item = this.catalog.get(key);
-      if (item) {
-        const cached = this.cache.get(item.path);
-        const now = Date.now();
-        if (cached && now - cached.timestamp < this.cacheTtlMs) {
-          return cached.content;
+      try {
+        let targetFile = filePath;
+        if (fs.existsSync(targetFile) && fs.statSync(targetFile).isDirectory()) {
+          const potential = path.join(targetFile, 'SKILL.md');
+          if (fs.existsSync(potential)) {
+            targetFile = potential;
+          }
         }
 
-        try {
-          // Read-only access
-          let filePath = item.path;
-          const stat = await fs.promises.stat(filePath);
-          if (stat.isDirectory()) {
-            const potentialFile = path.join(filePath, 'SKILL.md');
-            if (fs.existsSync(potentialFile)) {
-              filePath = potentialFile;
-            }
-          }
-
-          if (fs.existsSync(filePath) && (await fs.promises.stat(filePath)).isFile()) {
-            const raw = await fs.promises.readFile(filePath, 'utf-8');
-            // Clean frontmatter if present
-            const cleaned = raw.replace(/^---[\s\S]*?---\s*/, '').trim();
-            const formatted = `[ECC METHODOLOGY: ${skillName.toUpperCase()}]\n${cleaned}`;
-            this.cache.set(item.path, { content: formatted, timestamp: now });
-            return formatted;
-          }
-        } catch {
-          // Fall through to builtin
+        if (fs.existsSync(targetFile) && fs.statSync(targetFile).isFile()) {
+          const raw = fs.readFileSync(targetFile, 'utf-8');
+          const cleaned = raw.replace(/^---[\s\S]*?---\s*/, '').trim();
+          const lineCount = cleaned.split('\n').length;
+          const formatted = `[ECC METHODOLOGY: ${skillName.toUpperCase()}]\n${cleaned}`;
+          this.cache.set(filePath, { content: formatted, timestamp: now });
+          console.log(`  ↳ [ECC JIT] Loaded skill '${skillName}' from ${targetFile} (${lineCount} lines)`);
+          return formatted;
         }
+      } catch {
+        // Fall through to builtin
       }
     }
 
@@ -234,66 +316,7 @@ export class EccKnowledgeAdapter {
   }
 
   public async resolveStageSkills(skillNames: string[]): Promise<string> {
-    if (!skillNames || skillNames.length === 0) {
-      return '';
-    }
-
-    const instructions: string[] = [];
-    for (const name of skillNames) {
-      const instr = await this.getSkillInstruction(name);
-      if (instr) {
-        instructions.push(instr);
-      }
-    }
-
-    if (instructions.length === 0) {
-      return '';
-    }
-
-    return `
-MANDATORY ENGINEERING METHODOLOGIES & GUIDELINES:
-${instructions.join('\n\n')}
-`.trim();
-  }
-
-  public getSkillInstructionSync(skillName: string): string {
-    const key = skillName.toLowerCase().trim();
-
-    if (this.eccPath) {
-      const item = this.catalog.get(key);
-      if (item) {
-        const cached = this.cache.get(item.path);
-        if (cached && Date.now() - cached.timestamp < this.cacheTtlMs) {
-          return cached.content;
-        }
-
-        try {
-          let filePath = item.path;
-          if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
-            const potential = path.join(filePath, 'SKILL.md');
-            if (fs.existsSync(potential)) {
-              filePath = potential;
-            }
-          }
-
-          if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-            const raw = fs.readFileSync(filePath, 'utf-8');
-            const cleaned = raw.replace(/^---[\s\S]*?---\s*/, '').trim();
-            const formatted = `[ECC METHODOLOGY: ${skillName.toUpperCase()}]\n${cleaned}`;
-            this.cache.set(item.path, { content: formatted, timestamp: Date.now() });
-            return formatted;
-          }
-        } catch {
-          // Fall through to builtin
-        }
-      }
-    }
-
-    if (BUILTIN_ECC_SKILLS[key]) {
-      return BUILTIN_ECC_SKILLS[key];
-    }
-
-    return `[METHODOLOGY: ${skillName.toUpperCase()}]\nApply standard engineering best practices for ${skillName}.`;
+    return this.resolveStageSkillsSync(skillNames);
   }
 
   public resolveStageSkillsSync(skillNames: string[]): string {
@@ -319,6 +342,122 @@ ${instructions.join('\n\n')}
 `.trim();
   }
 
+  public getRuleInstructionSync(ruleRef: string): string {
+    const key = ruleRef.toLowerCase().trim();
+    const filePath = this.resolveRuleFilePath(ruleRef) || (this.catalog.get(key)?.path);
+
+    if (filePath) {
+      const cached = this.cache.get(filePath);
+      const now = Date.now();
+      if (cached && now - cached.timestamp < this.cacheTtlMs) {
+        return cached.content;
+      }
+
+      try {
+        let targetFile = filePath;
+        if (fs.existsSync(targetFile) && fs.statSync(targetFile).isDirectory()) {
+          const potential = path.join(targetFile, 'RULE.md');
+          if (fs.existsSync(potential)) targetFile = potential;
+        }
+
+        if (fs.existsSync(targetFile) && fs.statSync(targetFile).isFile()) {
+          const raw = fs.readFileSync(targetFile, 'utf-8');
+          const cleaned = raw.replace(/^---[\s\S]*?---\s*/, '').trim();
+          const lineCount = cleaned.split('\n').length;
+          const formatted = `[ECC RULE: ${ruleRef.toUpperCase()}]\n${cleaned}`;
+          this.cache.set(filePath, { content: formatted, timestamp: now });
+          console.log(`  ↳ [ECC JIT] Loaded rule '${ruleRef}' from ${targetFile} (${lineCount} lines)`);
+          return formatted;
+        }
+      } catch {
+        // Fall through
+      }
+    }
+
+    return `[ECC RULE: ${ruleRef.toUpperCase()}]\nAdhere strictly to repository coding conventions and architecture patterns for ${ruleRef}.`;
+  }
+
+  public resolveStageRulesSync(ruleRefs: string[]): string {
+    if (!ruleRefs || ruleRefs.length === 0) {
+      return '';
+    }
+
+    const instructions: string[] = [];
+    for (const ref of ruleRefs) {
+      const instr = this.getRuleInstructionSync(ref);
+      if (instr) {
+        instructions.push(instr);
+      }
+    }
+
+    if (instructions.length === 0) {
+      return '';
+    }
+
+    return `
+MANDATORY CODING RULES & CONVENTIONS:
+${instructions.join('\n\n')}
+`.trim();
+  }
+
+  public getWorkflowInstructionSync(workflowRef: string): string {
+    const key = workflowRef.toLowerCase().trim();
+    const filePath = this.resolveWorkflowFilePath(workflowRef) || (this.catalog.get(key)?.path);
+
+    if (filePath) {
+      const cached = this.cache.get(filePath);
+      const now = Date.now();
+      if (cached && now - cached.timestamp < this.cacheTtlMs) {
+        return cached.content;
+      }
+
+      try {
+        let targetFile = filePath;
+        if (fs.existsSync(targetFile) && fs.statSync(targetFile).isDirectory()) {
+          const potential = path.join(targetFile, 'WORKFLOW.md');
+          if (fs.existsSync(potential)) targetFile = potential;
+        }
+
+        if (fs.existsSync(targetFile) && fs.statSync(targetFile).isFile()) {
+          const raw = fs.readFileSync(targetFile, 'utf-8');
+          const cleaned = raw.replace(/^---[\s\S]*?---\s*/, '').trim();
+          const lineCount = cleaned.split('\n').length;
+          const formatted = `[ECC WORKFLOW: ${workflowRef.toUpperCase()}]\n${cleaned}`;
+          this.cache.set(filePath, { content: formatted, timestamp: now });
+          console.log(`  ↳ [ECC JIT] Loaded workflow '${workflowRef}' from ${targetFile} (${lineCount} lines)`);
+          return formatted;
+        }
+      } catch {
+        // Fall through
+      }
+    }
+
+    return `[ECC WORKFLOW: ${workflowRef.toUpperCase()}]\nExecute stage workflow according to specification for ${workflowRef}.`;
+  }
+
+  public resolveStageWorkflowsSync(workflowRefs: string[]): string {
+    if (!workflowRefs || workflowRefs.length === 0) {
+      return '';
+    }
+
+    const instructions: string[] = [];
+    for (const ref of workflowRefs) {
+      const instr = this.getWorkflowInstructionSync(ref);
+      if (instr) {
+        instructions.push(instr);
+      }
+    }
+
+    if (instructions.length === 0) {
+      return '';
+    }
+
+    return `
+SPECIALIZED STAGE WORKFLOW SPECIFICATIONS:
+${instructions.join('\n\n')}
+`.trim();
+  }
+
   public getRolePersona(role: string): string {
     const key = role.toLowerCase().trim();
     if (BUILTIN_ROLE_PERSONAS[key]) {
@@ -326,7 +465,179 @@ ${instructions.join('\n\n')}
     }
     return `Specialist for role: ${role}`;
   }
+
+  private countFilesInSubdir(subdirName: string, extensions: string[]): number {
+    if (!this.eccPath) return 0;
+    const targetDir = path.join(this.eccPath, subdirName);
+    try {
+      if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+        return 0;
+      }
+      const entries = fs.readdirSync(targetDir, { withFileTypes: true });
+      let count = 0;
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const hasSpec = extensions.some((ext) => fs.existsSync(path.join(targetDir, entry.name, ext)));
+          if (hasSpec || extensions.includes('.md')) count++;
+        } else if (entry.isFile()) {
+          if (extensions.some((ext) => entry.name.endsWith(ext))) count++;
+        }
+      }
+      return count;
+    } catch {
+      return 0;
+    }
+  }
+
+  public getEccStatusSummary(): EccStatusSummary {
+    if (!this.eccPath) {
+      return {
+        configured: false,
+        valid: false,
+        skillsCount: Object.keys(BUILTIN_ECC_SKILLS).length,
+        rulesCount: 0,
+        workflowsCount: 0,
+        promptsCount: 0,
+        source: 'builtin',
+      };
+    }
+
+    let valid = false;
+    let skillsCount = 0;
+    let rulesCount = 0;
+    let workflowsCount = 0;
+    let promptsCount = 0;
+
+    try {
+      valid = fs.existsSync(this.eccPath) && fs.statSync(this.eccPath).isDirectory();
+      if (valid) {
+        skillsCount = this.countFilesInSubdir('skills', ['SKILL.md', '.md']);
+        rulesCount = this.countFilesInSubdir('rules', ['RULE.md', '.md']);
+        workflowsCount = this.countFilesInSubdir('workflows', ['WORKFLOW.md', '.md', '.workflow.js']);
+        promptsCount = this.countFilesInSubdir('prompts', ['.md', '.txt']);
+      }
+    } catch {
+      valid = false;
+    }
+
+    return {
+      configured: true,
+      path: this.eccPath,
+      valid,
+      skillsCount: valid ? skillsCount : Object.keys(BUILTIN_ECC_SKILLS).length,
+      rulesCount,
+      workflowsCount,
+      promptsCount,
+      source: valid ? 'external' : 'builtin',
+    };
+  }
+
+  public inspectSkill(skillName: string): StageEccItem {
+    const key = skillName.toLowerCase().trim();
+    const filePath = this.resolveSkillFilePath(skillName) || this.catalog.get(key)?.path;
+    if (filePath && fs.existsSync(filePath)) {
+      return { name: skillName, source: 'external', path: filePath };
+    }
+    return { name: skillName, source: 'builtin' };
+  }
+
+  public inspectRule(ruleRef: string): StageEccItem {
+    const key = ruleRef.toLowerCase().trim();
+    const filePath = this.resolveRuleFilePath(ruleRef) || this.catalog.get(key)?.path;
+    if (filePath && fs.existsSync(filePath)) {
+      return { name: ruleRef, source: 'external', path: filePath };
+    }
+    return { name: ruleRef, source: 'builtin' };
+  }
+
+  public inspectWorkflow(workflowRef: string): StageEccItem {
+    const key = workflowRef.toLowerCase().trim();
+    const filePath = this.resolveWorkflowFilePath(workflowRef) || this.catalog.get(key)?.path;
+    if (filePath && fs.existsSync(filePath)) {
+      return { name: workflowRef, source: 'external', path: filePath };
+    }
+    return { name: workflowRef, source: 'builtin' };
+  }
+
+  public getStageEccSummary(stage: StageDefinition, agentPersona?: string): StageEccSummary {
+    const rawSkills = stage.skills || stage.ecc_skills || [];
+    const rawRules = stage.ecc_rules || [];
+    const rawWorkflows = stage.ecc_workflows || [];
+
+    const skills = rawSkills.map((s) => this.inspectSkill(s));
+    const rules = rawRules.map((r) => this.inspectRule(r));
+    const workflows = rawWorkflows.map((w) => this.inspectWorkflow(w));
+
+    const hasExternal =
+      skills.some((s) => s.source === 'external') ||
+      rules.some((r) => r.source === 'external') ||
+      workflows.some((w) => w.source === 'external');
+    const hasBuiltin =
+      skills.some((s) => s.source === 'builtin') ||
+      rules.some((r) => r.source === 'builtin') ||
+      workflows.some((w) => w.source === 'builtin');
+
+    let source: 'external' | 'builtin' | 'mixed' = 'builtin';
+    if (hasExternal && hasBuiltin) source = 'mixed';
+    else if (hasExternal) source = 'external';
+
+    const persona = agentPersona || stage.subagent || this.getRolePersona(stage.role);
+
+    return {
+      configuredPath: this.eccPath,
+      source,
+      agentPersona: persona,
+      skills,
+      rules,
+      workflows,
+    };
+  }
+
+  public formatStageEccBanner(stage: StageDefinition, agentPersona?: string): string {
+    const summary = this.getStageEccSummary(stage, agentPersona);
+    const lines: string[] = [];
+
+    const eccPathLabel = this.eccPath
+      ? `${this.eccPath} (${summary.source})`
+      : 'Not configured (using built-in offline methodologies)';
+
+    lines.push(`  [ECC Governance] Stage: "${stage.id}" (${stage.role}) | Agent Persona: ${summary.agentPersona}`);
+    lines.push(`  ├─ ECC Directory: ${eccPathLabel}`);
+
+    if (summary.skills.length > 0) {
+      const formattedSkills = summary.skills.map((s) =>
+        s.source === 'external' ? `${s.name} [external]` : `${s.name} [builtin]`
+      );
+      lines.push(`  ├─ Skills:        ${formattedSkills.join(', ')}`);
+    } else {
+      lines.push(`  ├─ Skills:        None assigned`);
+    }
+
+    if (summary.rules.length > 0) {
+      const formattedRules = summary.rules.map((r) =>
+        r.source === 'external' ? `${r.name} [external]` : `${r.name} [builtin]`
+      );
+      lines.push(`  ├─ Rules:         ${formattedRules.join(', ')}`);
+    }
+
+    if (summary.workflows.length > 0) {
+      const formattedWorkflows = summary.workflows.map((w) =>
+        w.source === 'external' ? `${w.name} [external]` : `${w.name} [builtin]`
+      );
+      lines.push(`  └─ Flows/Wf:      ${formattedWorkflows.join(', ')}`);
+    } else {
+      lines.push(`  └─ Flows/Wf:      Standard stage execution`);
+    }
+
+    return lines.join('\n');
+  }
 }
 
 // Global singleton instance for shared pipeline execution
 export const defaultEccAdapter = new EccKnowledgeAdapter();
+
+export function configureDefaultEccAdapter(options?: { eccPath?: string; cacheTtlMs?: number }): void {
+  if (options?.eccPath) {
+    defaultEccAdapter.setEccPath(options.eccPath);
+  }
+}

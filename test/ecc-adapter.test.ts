@@ -161,4 +161,171 @@ description: Custom ECC skill for testing
     expect(prompt).toContain('[ECC METHODOLOGY: CODING-STANDARDS]');
     expect(prompt).toContain('Surgical Changes');
   });
+
+  it('loads skills, rules, and workflows JIT on-demand directly without calling initialize()', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-jit-test-'));
+    const skillDir = path.join(tempDir, 'skills', 'jit-skill');
+    const rulesDir = path.join(tempDir, 'rules', 'typescript');
+    const workflowDir = path.join(tempDir, 'workflows');
+
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.mkdirSync(rulesDir, { recursive: true });
+    fs.mkdirSync(workflowDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(skillDir, 'SKILL.md'),
+      '---\nname: jit-skill\n---\n### JIT Skill Procedure\nExecute immediate analysis.',
+      'utf-8'
+    );
+    fs.writeFileSync(
+      path.join(rulesDir, 'coding-style.md'),
+      '---\nname: ts-coding-style\n---\n### TypeScript Rules\nUse strict types and no any.',
+      'utf-8'
+    );
+    fs.writeFileSync(
+      path.join(workflowDir, 'orch-review.md'),
+      '### Review Workflow\n1. Check diff\n2. Run linter',
+      'utf-8'
+    );
+
+    try {
+      const adapter = new EccKnowledgeAdapter({ eccPath: tempDir });
+      // Notice: DO NOT call adapter.initialize()! Verify JIT direct resolution!
+      expect(adapter.isExternalConfigured()).toBe(true);
+
+      const skillRes = adapter.getSkillInstructionSync('jit-skill');
+      expect(skillRes).toContain('[ECC METHODOLOGY: JIT-SKILL]');
+      expect(skillRes).toContain('Execute immediate analysis.');
+
+      const ruleRes = adapter.getRuleInstructionSync('typescript/coding-style');
+      expect(ruleRes).toContain('[ECC RULE: TYPESCRIPT/CODING-STYLE]');
+      expect(ruleRes).toContain('Use strict types and no any.');
+
+      const workflowRes = adapter.getWorkflowInstructionSync('orch-review');
+      expect(workflowRes).toContain('[ECC WORKFLOW: ORCH-REVIEW]');
+      expect(workflowRes).toContain('Check diff');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('injects ecc_rules and ecc_workflows into buildPromptForStage', () => {
+    const stage: StageDefinition = {
+      id: 'implement',
+      role: 'coder',
+      ecc_skills: ['coding-standards'],
+      ecc_rules: ['typescript/coding-style'],
+      ecc_workflows: ['orch-review'],
+    };
+
+    const prompt = buildPromptForStage({
+      pipelineId: 'pipe-jit-prompt-test',
+      objective: 'Verify rules and workflows injection',
+      workspace: '/test/workspace',
+      pipelineDir: '/test/workspace/.pipeline/pipe-jit-prompt-test',
+      taskId: 'task-jit',
+      dispatchId: 'disp-jit',
+      stage,
+    });
+
+    expect(prompt).toContain('MANDATORY ENGINEERING METHODOLOGIES & GUIDELINES:');
+    expect(prompt).toContain('CODING-STANDARDS');
+    expect(prompt).toContain('MANDATORY CODING RULES & CONVENTIONS:');
+    expect(prompt).toContain('TYPESCRIPT/CODING-STYLE');
+    expect(prompt).toContain('SPECIALIZED STAGE WORKFLOW SPECIFICATIONS:');
+    expect(prompt).toContain('ORCH-REVIEW');
+  });
+
+  it('verifies full ECC external directory layout dynamically with skills, rules, workflows and banner', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-external-fixture-'));
+    const skillDir = path.join(tempDir, 'skills', 'search-first');
+    const rulesDir = path.join(tempDir, 'rules', 'typescript');
+    const workflowsDir = path.join(tempDir, 'workflows');
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.mkdirSync(rulesDir, { recursive: true });
+    fs.mkdirSync(workflowsDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(skillDir, 'SKILL.md'),
+      '---\nname: search-first\n---\nTOOL AVAILABILITY PREFLIGHT\nPARALLEL SEARCH\nVerify existing code before writing.',
+      'utf-8'
+    );
+    fs.writeFileSync(
+      path.join(rulesDir, 'coding-standards.md'),
+      '# Coding Standards\nSurgical edits only.',
+      'utf-8'
+    );
+    fs.writeFileSync(
+      path.join(workflowsDir, 'orch-review.md'),
+      '# Orchestration Review Workflow\nInspect diff thoroughly.',
+      'utf-8'
+    );
+
+    try {
+      const adapter = new EccKnowledgeAdapter({ eccPath: tempDir });
+      expect(adapter.isExternalConfigured()).toBe(true);
+      expect(adapter.getEccPath()).toBe(tempDir);
+
+      const status = adapter.getEccStatusSummary();
+      expect(status.configured).toBe(true);
+      expect(status.valid).toBe(true);
+      expect(status.skillsCount).toBeGreaterThanOrEqual(1);
+      expect(status.rulesCount).toBeGreaterThanOrEqual(1);
+      expect(status.workflowsCount).toBeGreaterThanOrEqual(1);
+
+      const searchFirst = adapter.getSkillInstructionSync('search-first');
+      expect(searchFirst).toContain('[ECC METHODOLOGY: SEARCH-FIRST]');
+      expect(searchFirst).toContain('TOOL AVAILABILITY PREFLIGHT');
+      expect(searchFirst).toContain('PARALLEL SEARCH');
+
+      const stage: StageDefinition = {
+        id: 'requirement',
+        role: 'analyst',
+        ecc_skills: ['search-first'],
+        ecc_rules: ['typescript/coding-standards'],
+        ecc_workflows: ['orch-review'],
+      };
+
+      const summary = adapter.getStageEccSummary(stage, 'workflow-orchestrator');
+      expect(summary.source).toBe('external');
+      expect(summary.skills[0].source).toBe('external');
+      expect(summary.rules[0].source).toBe('external');
+      expect(summary.workflows[0].source).toBe('external');
+
+      const banner = adapter.formatStageEccBanner(stage, 'workflow-orchestrator');
+      expect(banner).toContain('[ECC Governance]');
+      expect(banner).toContain('search-first [external]');
+      expect(banner).toContain('typescript/coding-standards [external]');
+      expect(banner).toContain('orch-review [external]');
+
+      // Prompt injection with ECC Governance Context header
+      const prompt = buildPromptForStage({
+        pipelineId: 'pipe-ecc-banner-test',
+        objective: 'Verify ECC banner and methodology context in prompt',
+        workspace: '/test/workspace',
+        pipelineDir: '/test/workspace/.pipeline/pipe-ecc-banner-test',
+        taskId: 'task-ecc',
+        dispatchId: 'disp-ecc',
+        stage,
+        adapter,
+      });
+
+      expect(prompt).toContain('[ECC GOVERNANCE & METHODOLOGY CONTEXT]');
+      expect(prompt).toContain('search-first [external]');
+      expect(prompt).toContain('typescript/coding-standards [external]');
+      expect(prompt).toContain('orch-review [external]');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('verifies environment ECC directory if specified in ECC_DIR or ECC_PATH without hardcoding', () => {
+    const envEcc = process.env.ECC_DIR || process.env.ECC_PATH;
+    if (envEcc && fs.existsSync(envEcc)) {
+      const adapter = new EccKnowledgeAdapter({ eccPath: envEcc });
+      expect(adapter.isExternalConfigured()).toBe(true);
+      const status = adapter.getEccStatusSummary();
+      expect(status.valid).toBe(true);
+    }
+  });
 });

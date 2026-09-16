@@ -33,6 +33,8 @@ export interface StageDefinition {
   next?: string[];
   skills?: string[];
   ecc_skills?: string[];
+  ecc_rules?: string[];
+  ecc_workflows?: string[];
   on?: {
     pass?: string;
     fail?: string;
@@ -84,6 +86,32 @@ export interface PipelineConfig {
   };
 }
 
+export interface StageEccItem {
+  name: string;
+  source: 'external' | 'builtin';
+  path?: string;
+}
+
+export interface StageEccSummary {
+  configuredPath?: string;
+  source: 'external' | 'builtin' | 'mixed';
+  agentPersona?: string;
+  skills: StageEccItem[];
+  rules: StageEccItem[];
+  workflows: StageEccItem[];
+}
+
+export interface EccStatusSummary {
+  configured: boolean;
+  path?: string;
+  valid: boolean;
+  skillsCount: number;
+  rulesCount: number;
+  workflowsCount: number;
+  promptsCount: number;
+  source: 'external' | 'builtin';
+}
+
 export interface StageState {
   status: StageStatus;
   taskId?: string;
@@ -95,6 +123,7 @@ export interface StageState {
   retries?: number;
   modifiedFiles?: string[];
   notes?: string;
+  ecc?: StageEccSummary;
 }
 
 export interface PipelineState {

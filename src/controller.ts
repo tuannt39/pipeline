@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 import { OrcaClient } from './orca';
-import { WorkerSpawner } from './spawner';
+import { WorkerSpawner, ROLE_TO_AGY_SUBAGENT } from './spawner';
 import { PipelineConfig, PipelineProfile, PipelineState, StageDefinition } from './types';
 import { getReadyStages, isPipelineFinished, validateDAG } from './dag';
 import {
@@ -17,6 +17,7 @@ import {
 } from './state';
 import { loadProfile } from './profiles';
 import { buildPromptForStage } from './prompts';
+import { EccKnowledgeAdapter, configureDefaultEccAdapter } from './ecc-adapter';
 
 export interface ControllerOptions {
   config: PipelineConfig;
@@ -30,12 +31,21 @@ export class PipelineController {
   private orca: OrcaClient;
   private spawner: WorkerSpawner;
   private cwd: string;
+  private eccAdapter: EccKnowledgeAdapter;
 
   constructor(options: ControllerOptions) {
     this.config = options.config;
     this.cwd = options.cwd || process.cwd();
     this.orca = options.orca || new OrcaClient({ command: this.config.orca.command, cwd: this.cwd });
     this.spawner = options.spawner || new WorkerSpawner(this.orca);
+    this.eccAdapter = new EccKnowledgeAdapter({
+      eccPath: this.config.ecc?.path,
+      cacheTtlMs: this.config.ecc?.cache_ttl_ms,
+    });
+    configureDefaultEccAdapter({
+      eccPath: this.config.ecc?.path,
+      cacheTtlMs: this.config.ecc?.cache_ttl_ms,
+    });
   }
 
   async createPipeline(options: {
@@ -543,6 +553,13 @@ export class PipelineController {
     }
 
     const dispatchId = `disp-${stage.id}-${Date.now()}`;
+    const persona =
+      stage.subagent ||
+      (this.config.defaults.agent === 'agy' ? ROLE_TO_AGY_SUBAGENT[stage.role] : undefined) ||
+      this.eccAdapter.getRolePersona(stage.role);
+    console.log(`\n[Pipeline] Preparing stage "${stage.id}" (${stage.role})...`);
+    console.log(this.eccAdapter.formatStageEccBanner(stage, persona));
+    const eccSummary = this.eccAdapter.getStageEccSummary(stage, persona);
 
     const prompt = buildPromptForStage({
       pipelineId: state.id,
@@ -554,6 +571,7 @@ export class PipelineController {
       stage,
       inputs: stage.inputs,
       fixIteration: state.fixLoops,
+      adapter: this.eccAdapter,
     });
 
     const taskFile = path.join(pipelineDir, `task-${stage.id}.md`);
@@ -583,6 +601,7 @@ export class PipelineController {
         dispatchId: actualDispatchId,
         terminalHandle,
         startTime: new Date().toISOString(),
+        ecc: eccSummary,
       });
     } catch (err: any) {
       console.error(`[pipeline-controller] spawnWorker failed for stage "${stage.id}":`, err.message);
@@ -782,6 +801,11 @@ export class PipelineController {
     }
 
     lines.push(``);
+    const eccStatus = this.eccAdapter.getEccStatusSummary();
+    lines.push(`## ECC Knowledge & Governance`);
+    lines.push(`- **Source**: ${eccStatus.configured && eccStatus.valid ? `External (${eccStatus.path})` : 'Built-in offline methodologies'}`);
+    lines.push(`- **Components Detected**: ${eccStatus.skillsCount} skills, ${eccStatus.rulesCount} rules, ${eccStatus.workflowsCount} workflows`);
+    lines.push(``);
     lines.push(`## Artifacts List`);
     const files = fs.readdirSync(pipelineDir).filter((f) => f.endsWith('.md') || f.endsWith('.json'));
     for (const file of files) {
@@ -801,6 +825,11 @@ export class PipelineController {
     console.log(`[${timeStr}] [Pipeline Status Check - Periodic 3m Ticker]`);
     const statusNotice = state.status === 'waiting_approval' ? ' (⏸️ Awaiting Plan approval)' : '';
     console.log(`Pipeline ID: ${state.id} | Status: ${state.status.toUpperCase()}${statusNotice} | Profile: ${profile.name}`);
+    const eccStatus = this.eccAdapter.getEccStatusSummary();
+    const eccLabel = eccStatus.configured && eccStatus.valid
+      ? `${eccStatus.path} (external: ${eccStatus.skillsCount} skills, ${eccStatus.rulesCount} rules, ${eccStatus.workflowsCount} workflows)`
+      : `Built-in offline methodologies (${eccStatus.skillsCount} skills, 7 specialist personas)`;
+    console.log(`ECC:         ${eccLabel}`);
     console.log(`Objective:   ${state.objective}`);
     console.log(`Duration:    ${elapsedMinutes}m ${elapsedSeconds}s | Fix Loops: ${state.fixLoops}`);
     console.log(`Stages:`);

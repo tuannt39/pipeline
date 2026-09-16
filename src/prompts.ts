@@ -1,6 +1,6 @@
 import path from 'path';
 import { StageDefinition } from './types';
-import { defaultEccAdapter } from './ecc-adapter';
+import { EccKnowledgeAdapter, defaultEccAdapter } from './ecc-adapter';
 
 export interface PromptContext {
   pipelineId: string;
@@ -12,6 +12,7 @@ export interface PromptContext {
   stage: StageDefinition;
   inputs?: string[];
   fixIteration?: number;
+  adapter?: EccKnowledgeAdapter;
 }
 
 export function buildWorkerCompletionSnippet(taskId: string, dispatchId: string, defaultSubject: string): string {
@@ -400,10 +401,13 @@ export function buildPromptForStage(ctx: PromptContext): string {
       break;
   }
 
-  // Dynamic Skill & Methodology Injection via EccKnowledgeAdapter
+  // Dynamic Skill, Rule & Workflow Injection via JIT EccKnowledgeAdapter
+  const adapter = ctx.adapter || defaultEccAdapter;
+  const eccSummary = adapter.getStageEccSummary(ctx.stage, ctx.stage.subagent);
+
   const skills = ctx.stage.skills || ctx.stage.ecc_skills;
   if (skills && skills.length > 0) {
-    const skillGuideline = defaultEccAdapter.resolveStageSkillsSync(skills);
+    const skillGuideline = adapter.resolveStageSkillsSync(skills);
     if (skillGuideline) {
       const completionMarker = 'WHEN FINISHED:';
       if (prompt.includes(completionMarker)) {
@@ -417,5 +421,55 @@ export function buildPromptForStage(ctx: PromptContext): string {
     }
   }
 
-  return prompt;
+  const rules = ctx.stage.ecc_rules;
+  if (rules && rules.length > 0) {
+    const ruleGuideline = adapter.resolveStageRulesSync(rules);
+    if (ruleGuideline) {
+      const completionMarker = 'WHEN FINISHED:';
+      if (prompt.includes(completionMarker)) {
+        prompt = prompt.replace(
+          completionMarker,
+          `${ruleGuideline}\n\n${completionMarker}`
+        );
+      } else {
+        prompt = `${prompt}\n\n${ruleGuideline}`;
+      }
+    }
+  }
+
+  const workflows = ctx.stage.ecc_workflows;
+  if (workflows && workflows.length > 0) {
+    const workflowGuideline = adapter.resolveStageWorkflowsSync(workflows);
+    if (workflowGuideline) {
+      const completionMarker = 'WHEN FINISHED:';
+      if (prompt.includes(completionMarker)) {
+        prompt = prompt.replace(
+          completionMarker,
+          `${workflowGuideline}\n\n${completionMarker}`
+        );
+      } else {
+        prompt = `${prompt}\n\n${workflowGuideline}`;
+      }
+    }
+  }
+
+  const eccHeaderLines: string[] = [
+    '================================================================================',
+    '[ECC GOVERNANCE & METHODOLOGY CONTEXT]',
+    `ECC Directory:      ${eccSummary.configuredPath ? `${eccSummary.configuredPath} (${eccSummary.source})` : 'Built-in offline methodologies'}`,
+    `Stage Role/ID:      ${ctx.stage.id} (${ctx.stage.role})`,
+    `Agent Persona:      ${eccSummary.agentPersona}`,
+  ];
+  if (eccSummary.skills.length > 0) {
+    eccHeaderLines.push(`Injected Skills:    ${eccSummary.skills.map((s) => `${s.name} [${s.source}]`).join(', ')}`);
+  }
+  if (eccSummary.rules.length > 0) {
+    eccHeaderLines.push(`Injected Rules:     ${eccSummary.rules.map((r) => `${r.name} [${r.source}]`).join(', ')}`);
+  }
+  if (eccSummary.workflows.length > 0) {
+    eccHeaderLines.push(`Injected Workflows: ${eccSummary.workflows.map((w) => `${w.name} [${w.source}]`).join(', ')}`);
+  }
+  eccHeaderLines.push('================================================================================');
+
+  return `${eccHeaderLines.join('\n')}\n\n${prompt}`;
 }
