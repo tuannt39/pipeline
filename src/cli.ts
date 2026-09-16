@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import { findConfigFile, hasCommand, detectDefaultAgent, normalizeAgent, loadConfig, initConfiguration } from './config';
+import { findConfigFile, hasCommand, isRealOrcaCli, detectDefaultAgent, normalizeAgent, loadConfig, initConfiguration } from './config';
 import { defaultEccAdapter, configureDefaultEccAdapter } from './ecc-adapter';
 import { loadProfile } from './profiles';
 import { PipelineController } from './controller';
@@ -66,13 +66,18 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
   switch (command) {
     case 'doctor': {
       const activeAgent = detectDefaultAgent();
-      const hasOrca = hasCommand(config.orca.command);
+      const isRealOrca = isRealOrcaCli(config.orca.command);
       const hasAgy = hasCommand('agy');
       const hasOmp = hasCommand('omp');
 
       console.log('Pipeline Orchestrator Doctor:');
       console.log('------------------------------------------------------------');
-      console.log(`Orca CLI (${config.orca.command}):      ${hasOrca ? '✓ Found' : '✗ Not found (orca CLI needed for task orchestration)'}`);
+      const orcaStatusLabel = isRealOrca
+        ? '✓ Found (Orca Native Orchestrator)'
+        : hasCommand(config.orca.command)
+        ? '○ GNOME Screen Reader detected (Falling back to Direct Standalone Runner)'
+        : '○ Not installed (Using Direct Standalone Runner)';
+      console.log(`Orca CLI (${config.orca.command}):      ${orcaStatusLabel}`);
       console.log(`Antigravity CLI (agy): ${hasAgy ? '✓ Found' : '○ Not installed'}`);
       console.log(`Oh-My-Pi CLI (omp):    ${hasOmp ? '✓ Found' : '○ Not installed'}`);
       console.log(`Active Harness Agent:  ${activeAgent.toUpperCase()} (configured default: ${config.defaults.agent})`);
@@ -386,9 +391,10 @@ USAGE:
   pipeline <objective>
 
 PROFILES:
-  simple     Fast path: implement -> test -> review
+  ecc        Default: 20-stage ECC engineering lifecycle with 360° master plan & plan approval gate
+  full       Enterprise: spec -> [architect, security, pattern] -> plan -> implement -> test -> review
   standard   Production: plan -> implement -> test -> review (with review fix loop)
   secure     Parallel: plan -> [architect, security, pattern] -> implement -> test -> review -> final-security
-  full       Default: spec -> [architect, security, pattern] -> plan -> implement -> test -> security-2 -> review
+  simple     Fast path: plan -> implement -> test -> review
 `);
 }

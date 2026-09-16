@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 import { OrcaClient } from './orca';
-import { WorkerSpawner, ROLE_TO_AGY_SUBAGENT } from './spawner';
+import { WorkerSpawner, ROLE_TO_AGY_SUBAGENT, isProcessAlive } from './spawner';
 import { PipelineConfig, PipelineProfile, PipelineState, StageDefinition } from './types';
 import { getReadyStages, isPipelineFinished, validateDAG } from './dag';
 import {
@@ -87,16 +87,17 @@ export class PipelineController {
   }): Promise<PipelineState> {
     const { id, dir, profile } = await this.createPipeline(options);
 
-    // Create Orca Run
-    let runId: string;
-    try {
-      const runRes = await this.orca.runCreate({
-        objective: `Pipeline [${id}] - ${options.objective}`,
-      });
-      runId = runRes.id;
-    } catch (err: any) {
-      console.warn(`[pipeline-controller] orca run-create fallback to local ID:`, err.message);
-      runId = `run-${id}`;
+    // Create Orca Run if available
+    let runId = `run-${id}`;
+    if (this.orca.isAvailable()) {
+      try {
+        const runRes = await this.orca.runCreate({
+          objective: `Pipeline [${id}] - ${options.objective}`,
+        });
+        runId = runRes.id;
+      } catch (err: any) {
+        console.warn(`[pipeline-controller] orca run-create fallback to local ID:`, err.message);
+      }
     }
 
     return this.runLoop(dir, runId, profile, options.onUpdate);
@@ -125,15 +126,16 @@ export class PipelineController {
       saveState(pipelineDir, state);
     }
 
-    let runId: string;
-    try {
-      const runRes = await this.orca.runCreate({
-        objective: `Pipeline [${pipelineId}] (resumed) - ${state.objective}`,
-      });
-      runId = runRes.id;
-    } catch (err: any) {
-      console.warn(`[pipeline-controller] orca run-create fallback to local ID:`, err.message);
-      runId = `run-${pipelineId}`;
+    let runId = `run-${pipelineId}`;
+    if (this.orca.isAvailable()) {
+      try {
+        const runRes = await this.orca.runCreate({
+          objective: `Pipeline [${pipelineId}] (resumed) - ${state.objective}`,
+        });
+        runId = runRes.id;
+      } catch (err: any) {
+        console.warn(`[pipeline-controller] orca run-create fallback to local ID:`, err.message);
+      }
     }
 
     return this.runLoop(pipelineDir, runId, profile, onUpdate);
@@ -265,34 +267,39 @@ export class PipelineController {
         return state;
       }
 
-      // Wait for Orca events
-      try {
-        const delivery = await this.orca.check({
-          runId,
-          wait: true,
-          timeoutMs: 3000,
-          types: ['worker_done', 'escalation', 'question'],
-        });
+      // Wait for Orca events if available, or sleep briefly in standalone mode
+      if (this.orca.isAvailable()) {
+        try {
+          const delivery = await this.orca.check({
+            runId,
+            wait: true,
+            timeoutMs: 3000,
+            types: ['worker_done', 'escalation', 'question'],
+          });
 
-        if (delivery && delivery.messages && delivery.messages.length > 0) {
-          for (const msg of delivery.messages) {
-            await this.handleOrcaMessage(msg, pipelineDir, profile, state);
+          if (delivery && delivery.messages && delivery.messages.length > 0) {
+            for (const msg of delivery.messages) {
+              await this.handleOrcaMessage(msg, pipelineDir, profile, state);
+            }
+
+            // Acknowledge delivery batch if ID present (support deliveryId and delivery_id)
+            const ackId = (delivery as any).deliveryId || delivery.delivery_id || (delivery as any).id;
+            if (ackId) {
+              await this.orca.check({
+                runId,
+                ackDeliveryId: ackId,
+              });
+            }
+
+            state = loadState(pipelineDir);
+            onUpdate?.(state);
           }
-
-          // Acknowledge delivery batch if ID present (support deliveryId and delivery_id)
-          const ackId = (delivery as any).deliveryId || delivery.delivery_id || (delivery as any).id;
-          if (ackId) {
-            await this.orca.check({
-              runId,
-              ackDeliveryId: ackId,
-            });
-          }
-
-          state = loadState(pipelineDir);
-          onUpdate?.(state);
+        } catch (checkErr: any) {
+          console.warn(`[pipeline-controller] check wait error (retrying):`, checkErr.message);
         }
-      } catch (checkErr: any) {
-        console.warn(`[pipeline-controller] check wait error (retrying):`, checkErr.message);
+      } else {
+        // Standalone direct runner mode: poll interval
+        await new Promise((resolve) => setTimeout(resolve, 1500));
       }
     }
 
@@ -505,28 +512,39 @@ export class PipelineController {
         continue;
       }
 
-      // If outputs are not satisfied and worker terminal died
-      if (!allOutputsPresent && stageState.terminalHandle && activeTerminals) {
-        if (!activeTerminals.has(stageState.terminalHandle)) {
-          const currentRetries = stageState.retries || 0;
-          if (currentRetries < this.config.policies.max_stage_retries) {
-            console.warn(`[pipeline-controller] Worker terminal for stage "${stageId}" is no longer active. Retrying (${currentRetries + 1}/${this.config.policies.max_stage_retries})...`);
-            updateStageState(state, stageId, {
-              status: 'pending',
-              retries: currentRetries + 1,
-              error: 'Worker terminal closed prematurely',
-            });
-            saveState(pipelineDir, state);
-            changed = true;
-          } else {
-            updateStageState(state, stageId, {
-              status: 'failed',
-              endTime: new Date().toISOString(),
-              error: `Stage worker terminal closed and exceeded max retries (${currentRetries})`,
-            });
-            saveState(pipelineDir, state);
-            changed = true;
+      // Check if worker died without satisfying outputs
+      let workerDied = false;
+      if (stageState.terminalHandle) {
+        if (stageState.terminalHandle.startsWith('pid:')) {
+          const pid = parseInt(stageState.terminalHandle.slice(4), 10);
+          if (pid && !isProcessAlive(pid)) {
+            workerDied = true;
           }
+        } else if (activeTerminals && !activeTerminals.has(stageState.terminalHandle)) {
+          workerDied = true;
+        }
+      }
+
+      // If outputs are not satisfied and worker process/terminal died
+      if (!allOutputsPresent && workerDied) {
+        const currentRetries = stageState.retries || 0;
+        if (currentRetries < this.config.policies.max_stage_retries) {
+          console.warn(`[pipeline-controller] Worker for stage "${stageId}" is no longer active. Retrying (${currentRetries + 1}/${this.config.policies.max_stage_retries})...`);
+          updateStageState(state, stageId, {
+            status: 'pending',
+            retries: currentRetries + 1,
+            error: 'Worker process/terminal closed prematurely',
+          });
+          saveState(pipelineDir, state);
+          changed = true;
+        } else {
+          updateStageState(state, stageId, {
+            status: 'failed',
+            endTime: new Date().toISOString(),
+            error: `Stage worker closed and exceeded max retries (${currentRetries})`,
+          });
+          saveState(pipelineDir, state);
+          changed = true;
         }
       }
     }
@@ -541,15 +559,17 @@ export class PipelineController {
     state: PipelineState
   ): Promise<void> {
     let taskId = `task-${stage.id}-${Date.now()}`;
-    try {
-      const taskRes = await this.orca.taskCreate({
-        spec: `Task for stage ${stage.id} in pipeline ${state.id}`,
-        taskTitle: `${state.id} / ${stage.id}`,
-        runId,
-      });
-      taskId = taskRes.id;
-    } catch (err: any) {
-      console.warn(`[pipeline-controller] task-create failed, using fallback taskId:`, err.message);
+    if (this.orca.isAvailable()) {
+      try {
+        const taskRes = await this.orca.taskCreate({
+          spec: `Task for stage ${stage.id} in pipeline ${state.id}`,
+          taskTitle: `${state.id} / ${stage.id}`,
+          runId,
+        });
+        taskId = taskRes.id;
+      } catch (err: any) {
+        console.warn(`[pipeline-controller] task-create fallback:`, err.message);
+      }
     }
 
     const dispatchId = `disp-${stage.id}-${Date.now()}`;
@@ -591,6 +611,7 @@ export class PipelineController {
         prompt,
         taskFile,
         focus: true,
+        cwd: this.cwd,
       });
       actualDispatchId = spawnRes.dispatchId || dispatchId;
       terminalHandle = spawnRes.terminalHandle;

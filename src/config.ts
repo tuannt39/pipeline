@@ -17,6 +17,24 @@ export function hasCommand(cmd: string): boolean {
   }
 }
 
+export function isRealOrcaCli(cmd: string = 'orca'): boolean {
+  try {
+    if (!hasCommand(cmd)) return false;
+    const output = execSync(`${cmd} orchestration --help`, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf8',
+      timeout: 3000,
+    });
+    return (
+      (output.includes('run-create') || output.includes('worker-start') || output.includes('task-create')) &&
+      !output.includes('GNOME/orca') &&
+      !output.includes('screen reader')
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeAgent(agent?: string): 'agy' | 'omp' {
   if (!agent) return 'agy';
   const clean = agent.trim().toLowerCase();

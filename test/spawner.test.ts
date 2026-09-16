@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { resolveWorkerCommand, ROLE_TO_AGY_SUBAGENT } from '../src/spawner';
+import { resolveWorkerCommand, ROLE_TO_AGY_SUBAGENT, WorkerSpawner, isProcessAlive } from '../src/spawner';
+import { OrcaClient } from '../src/orca';
 import { StageDefinition } from '../src/types';
 
 describe('WorkerSpawner & Command Resolution', () => {
@@ -18,10 +19,14 @@ describe('WorkerSpawner & Command Resolution', () => {
   it('maps all standard specialist roles to specialized Antigravity subagents', () => {
     const roles = [
       { role: 'planner', expected: 'workflow-orchestrator', mode: 'plan' },
+      { role: 'analyst', expected: 'technical-writer', mode: 'plan' },
+      { role: 'spec-writer', expected: 'technical-writer', mode: 'plan' },
       { role: 'architect', expected: 'architect-reviewer', mode: 'plan' },
       { role: 'security', expected: 'security-auditor', mode: 'plan' },
       { role: 'coder', expected: 'fullstack-developer', mode: 'accept-edits' },
+      { role: 'developer', expected: 'fullstack-developer', mode: 'accept-edits' },
       { role: 'tester', expected: 'test-automator', mode: 'plan' },
+      { role: 'verifier', expected: 'test-automator', mode: 'plan' },
       { role: 'reviewer', expected: 'code-reviewer', mode: 'plan' },
     ];
 
@@ -30,6 +35,28 @@ describe('WorkerSpawner & Command Resolution', () => {
       const cmd = resolveWorkerCommand(stage);
       expect(cmd).toBe(`agy --agent ${expected} --mode ${mode} --dangerously-skip-permissions`);
     }
+  });
+
+  it('verifies isProcessAlive works for existing process', () => {
+    expect(isProcessAlive(process.pid)).toBe(true);
+    // Invalid PID that shouldn't exist
+    expect(isProcessAlive(99999999)).toBe(false);
+  });
+
+  it('spawns worker in standalone direct execution mode when Orca is not available', async () => {
+    const mockOrca = new OrcaClient({ isAvailable: false });
+    const spawner = new WorkerSpawner(mockOrca);
+
+    const res = await spawner.spawnWorker({
+      stage: { id: 'requirement', role: 'analyst' },
+      taskId: 'task-test-standalone',
+      runId: 'run-standalone-1',
+    });
+
+    expect(res.method).toBe('standalone-process');
+    expect(res.dispatchId).toContain('disp-standalone-requirement');
+    expect(res.terminalHandle).toBeDefined();
+    expect(res.terminalHandle?.startsWith('pid:')).toBe(true);
   });
 
   it('includes taskFile parameter with /plan for analytical stages and /goal for implementer stages', () => {

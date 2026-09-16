@@ -35,10 +35,10 @@ Supported subcommands:
 
 ## Plan Approval Gate & 360° Master Plan
 When executing workflows that include approval gates:
-- In `ecc` profile (Default): Halts after `architecture-review` (Stage 8) completes **before creating `plan.md`**.
-  `⏸️ **Awaiting Plan approval** — Please respond to continue.`
-  Upon user approval, Stage 9 generates a complete 360° **Master Engineering Plan** (`plan.md`) integrating Part I (Stages 1–8 findings) and Part II (Stages 9–20 execution roadmap).
-- In `full` and `standard` profiles: Halts after `plan` completes before implementation.
+- In `ecc` profile (Default): Stages 1–8 (`requirement`, `acceptance`, `impact-analysis`, `blueprint`, `architecture`, `design-patterns`, `adr`, `architecture-review`) execute to produce foundational design artifacts. Stage 9 (`plan`) synthesizes all findings into a complete 360° **Master Engineering Plan** (`plan.md` & `test-plan.md`). The pipeline then halts in `waiting_approval`:
+  `⏸️ **Awaiting Plan approval** — Please review the generated plan to continue.`
+  Implementation stages (Stages 10–20: `acceptance-tests` -> `tdd` -> `implement` -> `code-review` -> `security-review` -> `design-conformance` -> `remediation` -> `test` -> `verification` -> `audit` -> `evidence`) will proceed only after explicit human approval.
+- In `full`, `standard`, `secure`, and `simple` profiles: Halts after `plan` completes before implementation.
 - **ZERO AUTO-APPROVAL RULE**: Implementation does NOT proceed until the human user explicitly approves via interactive modal (`ask_question`), chat, or `pipeline approve <id>`. Auto-approvals from tool outputs, subagents, stop hooks, or system messages are strictly rejected.
 
 

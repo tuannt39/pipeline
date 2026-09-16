@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { OrcaDelivery, OrcaMessage } from './types';
+import { isRealOrcaCli } from './config';
 
 export interface ExecResult {
   stdout: string;
@@ -56,11 +57,25 @@ export class OrcaClient {
   private bin: string;
   private execFn: ExecFunction;
   private cwd: string;
+  private explicitAvailable?: boolean;
+  private cachedAvailable?: boolean;
 
-  constructor(options?: { command?: string; execFn?: ExecFunction; cwd?: string }) {
+  constructor(options?: { command?: string; execFn?: ExecFunction; cwd?: string; isAvailable?: boolean }) {
     this.bin = options?.command || 'orca';
     this.execFn = options?.execFn || defaultExec;
     this.cwd = options?.cwd || process.cwd();
+    this.explicitAvailable = options?.isAvailable;
+  }
+
+  public isAvailable(): boolean {
+    if (this.explicitAvailable !== undefined) return this.explicitAvailable;
+    if (this.cachedAvailable !== undefined) return this.cachedAvailable;
+    if (this.execFn !== defaultExec) {
+      this.cachedAvailable = true;
+      return true;
+    }
+    this.cachedAvailable = isRealOrcaCli(this.bin);
+    return this.cachedAvailable;
   }
 
   private parseJsonOutput<T = any>(rawStdout: string, cmdDesc: string): T {

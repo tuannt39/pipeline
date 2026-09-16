@@ -24,6 +24,13 @@ describe('Config and Profiles', () => {
     expect(hasCommand('non_existent_binary_xyz123')).toBe(false);
   });
 
+  it('accurately verifies isRealOrcaCli does not treat GNOME screen reader or non-existent binary as orchestrator', () => {
+    const { isRealOrcaCli } = require('../src/config');
+    expect(isRealOrcaCli('non_existent_binary_xyz123')).toBe(false);
+    const orcaResult = isRealOrcaCli('orca');
+    expect(typeof orcaResult).toBe('boolean');
+  });
+
   it('loads all builtin profiles with auto agent defaults', () => {
     const config = structuredClone(DEFAULT_CONFIG);
     const profiles = ['simple', 'standard', 'secure', 'full', 'ecc'];

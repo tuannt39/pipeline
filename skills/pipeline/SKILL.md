@@ -22,8 +22,9 @@ When the user asks to start or run a pipeline (or invokes `/pipeline <objective>
    ```bash
    pipeline start [--profile <profile>] "<objective>"
    ```
-2. Running this command creates an Orca orchestration run and automatically opens and focuses a new dedicated worker tab in the Orca Desktop interface.
-3. Inform the user of the Pipeline ID and that the dedicated worker tab has been opened in Orca.
+2. Running this command creates an orchestration run (via Orca Native Orchestrator or Standalone Direct Runner if Orca is not available).
+3. Inform the user of the Pipeline ID and profile being used (defaults to `ecc`).
+4. Stages 1–8 execute sequentially to generate design and architecture artifacts, halting at Stage 9 (`plan`) awaiting human approval before advancing to implementation (Stages 10–20).
 
 ## Available Profiles
  
