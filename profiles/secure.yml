@@ -9,6 +9,9 @@ stages:
     mode: analysis
     read_only: true
     require_approval: true
+    ecc_skills:
+      - search-first
+      - iterative-retrieval
     outputs:
       - plan.md
     next:
@@ -21,6 +24,9 @@ stages:
     agent: auto
     worktree: active
     read_only: true
+    ecc_skills:
+      - backend-patterns
+      - api-design
     inputs:
       - plan.md
     outputs:
@@ -35,6 +41,8 @@ stages:
     agent: auto
     worktree: active
     read_only: true
+    ecc_skills:
+      - security-review
     inputs:
       - plan.md
     outputs:
@@ -49,6 +57,8 @@ stages:
     agent: auto
     worktree: active
     read_only: true
+    ecc_skills:
+      - backend-patterns
     inputs:
       - plan.md
     outputs:
@@ -63,6 +73,8 @@ stages:
     agent: auto
     worktree: active
     mode: goal
+    ecc_skills:
+      - coding-standards
     inputs:
       - plan.md
       - architecture.md
@@ -82,6 +94,8 @@ stages:
     agent: auto
     worktree: active
     mode: verify
+    ecc_skills:
+      - verification-loop
     inputs:
       - plan.md
       - implementation.md
@@ -95,6 +109,8 @@ stages:
     agent: auto
     worktree: active
     mode: review
+    ecc_skills:
+      - coding-standards
     inputs:
       - plan.md
       - implementation.md
@@ -110,6 +126,8 @@ stages:
     agent: auto
     worktree: active
     read_only: true
+    ecc_skills:
+      - security-review
     inputs:
       - plan.md
       - security-plan.md

@@ -1,7 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { findConfigFile, hasCommand, detectDefaultAgent, normalizeAgent, loadConfig, initConfiguration } from './config';
-import { defaultEccAdapter } from './ecc-adapter';
+import { defaultEccAdapter, configureDefaultEccAdapter } from './ecc-adapter';
 import { loadProfile } from './profiles';
 import { PipelineController } from './controller';
 import { getPipelineDir, listPipelines, loadState, saveState } from './state';
@@ -61,6 +61,7 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
 
   const cwd = process.cwd();
   const config = loadConfig(undefined, cwd);
+  configureDefaultEccAdapter({ eccPath: config.ecc?.path });
 
   switch (command) {
     case 'doctor': {

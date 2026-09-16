@@ -405,51 +405,33 @@ export function buildPromptForStage(ctx: PromptContext): string {
   const adapter = ctx.adapter || defaultEccAdapter;
   const eccSummary = adapter.getStageEccSummary(ctx.stage, ctx.stage.subagent);
 
-  const skills = ctx.stage.skills || ctx.stage.ecc_skills;
-  if (skills && skills.length > 0) {
+  const eccBlocks: string[] = [];
+
+  const skills = [...new Set([...(ctx.stage.skills || []), ...(ctx.stage.ecc_skills || [])])];
+  if (skills.length > 0) {
     const skillGuideline = adapter.resolveStageSkillsSync(skills);
-    if (skillGuideline) {
-      const completionMarker = 'WHEN FINISHED:';
-      if (prompt.includes(completionMarker)) {
-        prompt = prompt.replace(
-          completionMarker,
-          `${skillGuideline}\n\n${completionMarker}`
-        );
-      } else {
-        prompt = `${prompt}\n\n${skillGuideline}`;
-      }
-    }
+    if (skillGuideline) eccBlocks.push(skillGuideline);
   }
 
   const rules = ctx.stage.ecc_rules;
   if (rules && rules.length > 0) {
     const ruleGuideline = adapter.resolveStageRulesSync(rules);
-    if (ruleGuideline) {
-      const completionMarker = 'WHEN FINISHED:';
-      if (prompt.includes(completionMarker)) {
-        prompt = prompt.replace(
-          completionMarker,
-          `${ruleGuideline}\n\n${completionMarker}`
-        );
-      } else {
-        prompt = `${prompt}\n\n${ruleGuideline}`;
-      }
-    }
+    if (ruleGuideline) eccBlocks.push(ruleGuideline);
   }
 
   const workflows = ctx.stage.ecc_workflows;
   if (workflows && workflows.length > 0) {
     const workflowGuideline = adapter.resolveStageWorkflowsSync(workflows);
-    if (workflowGuideline) {
-      const completionMarker = 'WHEN FINISHED:';
-      if (prompt.includes(completionMarker)) {
-        prompt = prompt.replace(
-          completionMarker,
-          `${workflowGuideline}\n\n${completionMarker}`
-        );
-      } else {
-        prompt = `${prompt}\n\n${workflowGuideline}`;
-      }
+    if (workflowGuideline) eccBlocks.push(workflowGuideline);
+  }
+
+  if (eccBlocks.length > 0) {
+    const combinedEcc = eccBlocks.join('\n\n');
+    const completionMarker = 'WHEN FINISHED:';
+    if (prompt.includes(completionMarker)) {
+      prompt = prompt.replace(completionMarker, `${combinedEcc}\n\n${completionMarker}`);
+    } else {
+      prompt = `${prompt}\n\n${combinedEcc}`;
     }
   }
 

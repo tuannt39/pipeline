@@ -87,7 +87,8 @@ export default function (pi: any): void {
         checks.push(`✔ Config: profile=${cfg.defaults.profile}, agent=${cfg.defaults.agent}`);
         const { BUILTIN_PROFILES } = require('./profiles');
         checks.push(`✔ Profiles: ${Object.keys(BUILTIN_PROFILES).join(', ')}`);
-        const { defaultEccAdapter } = require('./ecc-adapter');
+        const { defaultEccAdapter, configureDefaultEccAdapter } = require('./ecc-adapter');
+        configureDefaultEccAdapter({ eccPath: cfg.ecc?.path });
         const eccStatus = defaultEccAdapter.getEccStatusSummary();
         if (eccStatus.configured && eccStatus.valid) {
           checks.push(`✔ ECC Knowledge: ${eccStatus.path} (${eccStatus.skillsCount} skills, ${eccStatus.rulesCount} rules, ${eccStatus.workflowsCount} workflows)`);

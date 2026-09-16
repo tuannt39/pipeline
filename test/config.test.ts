@@ -58,13 +58,21 @@ describe('Config and Profiles', () => {
 
   it('initializes configuration with profiles and config.yml', () => {
     const { initConfiguration } = require('../src/config');
-    const res = initConfiguration({ targetEnv: 'gemini', linkBin: false, force: true });
-    expect(res.configPath).toContain('.gemini');
-    expect(require('fs').existsSync(res.configPath)).toBe(true);
-    const content = require('fs').readFileSync(res.configPath, 'utf8');
-    expect(content).toContain('profile: ecc');
-    expect(content).toContain('root: .pipeline');
-    expect(content).toContain('ecc:');
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-init-test-'));
+    try {
+      const res = initConfiguration({ targetEnv: 'gemini', linkBin: false, local: true, cwd: tempDir, force: true });
+      expect(res.configPath).toContain(tempDir);
+      expect(fs.existsSync(res.configPath)).toBe(true);
+      const content = fs.readFileSync(res.configPath, 'utf8');
+      expect(content).toContain('profile: ecc');
+      expect(content).toContain('root: .pipeline');
+      expect(content).toContain('ecc:');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('recovers with default config when config file has invalid YAML syntax', () => {

@@ -17,6 +17,8 @@ stages:
   - id: acceptance
     role: analyst
     read_only: true
+    ecc_skills:
+      - search-first
     inputs:
       - requirement.md
     outputs:
@@ -45,6 +47,9 @@ stages:
   - id: blueprint
     role: architect
     read_only: true
+    ecc_skills:
+      - search-first
+      - iterative-retrieval
     inputs:
       - requirement.md
       - acceptance.md
@@ -74,6 +79,8 @@ stages:
   - id: design-patterns
     role: architect
     read_only: true
+    ecc_skills:
+      - backend-patterns
     inputs:
       - architecture.md
       - blueprint.md
@@ -87,6 +94,8 @@ stages:
   - id: adr
     role: architect
     read_only: true
+    ecc_skills:
+      - backend-patterns
     inputs:
       - architecture.md
       - design-patterns.md
@@ -100,6 +109,8 @@ stages:
   - id: architecture-review
     role: reviewer
     read_only: true
+    ecc_skills:
+      - search-first
     inputs:
       - architecture.md
       - design-patterns.md
@@ -115,6 +126,9 @@ stages:
     role: planner
     read_only: true
     require_approval: true
+    ecc_skills:
+      - search-first
+      - iterative-retrieval
     inputs:
       - requirement.md
       - acceptance.md
@@ -132,6 +146,8 @@ stages:
   - id: acceptance-tests
     role: tester
     read_only: true
+    ecc_skills:
+      - tdd-workflow
     inputs:
       - acceptance.md
       - plan.md
@@ -174,6 +190,8 @@ stages:
   - id: code-review
     role: reviewer
     read_only: true
+    ecc_skills:
+      - coding-standards
     inputs:
       - plan.md
       - implementation.md
@@ -201,6 +219,8 @@ stages:
   - id: design-conformance
     role: reviewer
     read_only: true
+    ecc_skills:
+      - backend-patterns
     inputs:
       - architecture.md
       - design-patterns.md
@@ -214,6 +234,8 @@ stages:
 
   - id: remediation
     role: coder
+    ecc_skills:
+      - coding-standards
     inputs:
       - code-review.md
       - security-review.md
@@ -227,6 +249,9 @@ stages:
 
   - id: test
     role: tester
+    ecc_skills:
+      - verification-loop
+      - tdd-workflow
     inputs:
       - implementation.md
       - plan.md
@@ -254,6 +279,8 @@ stages:
   - id: audit
     role: reviewer
     read_only: true
+    ecc_skills:
+      - verification-loop
     inputs:
       - requirement.md
       - architecture.md
@@ -269,6 +296,8 @@ stages:
   - id: evidence
     role: reviewer
     read_only: true
+    ecc_skills:
+      - verification-loop
     inputs:
       - audit.md
       - verification.md
