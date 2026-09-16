@@ -4,7 +4,7 @@ import { findConfigFile, hasCommand, isRealOrcaCli, detectDefaultAgent, normaliz
 import { defaultEccAdapter, configureDefaultEccAdapter } from './ecc-adapter';
 import { loadProfile } from './profiles';
 import { PipelineController } from './controller';
-import { getPipelineDir, listPipelines, loadState, saveState } from './state';
+import { getPipelineDir, listPipelines, loadState, saveState, updateStageState } from './state';
 import { PipelineState } from './types';
 
 export function formatStatus(state: PipelineState): string {
@@ -128,6 +128,80 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
         console.log(`CLI launcher:  ${res.linkedBin}`);
       }
       console.log(`To customize settings, edit ${res.configPath}`);
+      break;
+    }
+    case 'create':
+    case 'new': {
+      let profileName = config.defaults.profile;
+      let worktree = config.workspace.default;
+      const objectiveParts: string[] = [];
+
+      for (let i = 1; i < argv.length; i++) {
+        const arg = argv[i];
+        if (arg === '--profile' && i + 1 < argv.length) {
+          profileName = argv[++i];
+        } else if (arg === '--worktree' && i + 1 < argv.length) {
+          worktree = argv[++i] as any;
+        } else {
+          objectiveParts.push(arg);
+        }
+      }
+
+      const objective = objectiveParts.join(' ').trim();
+      if (!objective) {
+        console.error('Error: Objective is required. Usage: pipeline create [--profile <profile>] <objective>');
+        process.exit(1);
+      }
+
+      const controller = new PipelineController({ config, cwd });
+      const { id, dir, state, profile } = await controller.createPipeline({
+        objective,
+        profileName,
+        worktree,
+      });
+
+      console.log(`Pipeline created successfully:`);
+      console.log(`  ID:        ${id}`);
+      console.log(`  Profile:   ${profile.name}`);
+      console.log(`  Objective: ${state.objective}`);
+      console.log(`  Directory: ${dir}`);
+      console.log(`\nRun 'pipeline status ${id}' to inspect progress.`);
+      break;
+    }
+    case 'stage':
+    case 'set-stage': {
+      const targetId = argv[1];
+      const stageId = argv[2];
+      const stageStatus = argv[3] as any;
+      let notes: string | undefined;
+      let error: string | undefined;
+
+      for (let i = 4; i < argv.length; i++) {
+        const arg = argv[i];
+        if (arg === '--notes' && i + 1 < argv.length) {
+          notes = argv[++i];
+        } else if (arg === '--error' && i + 1 < argv.length) {
+          error = argv[++i];
+        }
+      }
+
+      if (!targetId || !stageId || !stageStatus) {
+        console.error('Usage: pipeline stage <pipeline-id> <stage-id> <pending|running|completed|failed|skipped> [--notes <notes>] [--error <error>]');
+        process.exit(1);
+      }
+
+      const pipelineDir = getPipelineDir(targetId, config.artifacts.root, cwd);
+      const state = loadState(pipelineDir);
+
+      const updateData: any = { status: stageStatus };
+      if (stageStatus === 'running') updateData.startTime = new Date().toISOString();
+      if (stageStatus === 'completed' || stageStatus === 'failed') updateData.endTime = new Date().toISOString();
+      if (notes) updateData.notes = notes;
+      if (error) updateData.error = error;
+
+      updateStageState(state, stageId, updateData);
+      saveState(pipelineDir, state);
+      console.log(`Stage "${stageId}" in pipeline "${targetId}" updated to "${stageStatus}".`);
       break;
     }
     case 'start': {
@@ -380,7 +454,9 @@ Pipeline Orchestrator (Antigravity & OMP, powered by Orca native orchestration)
 USAGE:
   pipeline init [--agy|--antigravity|--omp|--agent <agent>] [--local] [--force]
   pipeline doctor
+  pipeline create [--profile <profile>] [--worktree <worktree>] <objective>
   pipeline start [--profile <profile>] [--agent <agy|omp>] [--worktree <worktree>] <objective>
+  pipeline stage <id> <stage-id> <status> [--notes <notes>] [--error <error>]
   pipeline approve [<id>] [--resume]
   pipeline resume [<id>]
   pipeline watch [<id>] [--interval <sec>]

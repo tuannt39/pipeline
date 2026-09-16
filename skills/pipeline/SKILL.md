@@ -5,7 +5,7 @@ description: Orchestrate multi-stage autonomous workflows with Orca native orche
 
 # Orca Pipeline Orchestration Skill
 
-This skill allows Antigravity agents to execute, inspect, and supervise autonomous multi-stage software engineering workflows using the **Orca Pipeline Orchestrator**.
+This skill allows Antigravity agents to execute, inspect, and supervise autonomous multi-stage software engineering workflows using the **Orca Pipeline Orchestrator** and **ECC Lifecycle**.
 
 ## When to Use
 
@@ -18,13 +18,17 @@ Activate this skill when:
 ## Instructions for the Agent
 
 When the user asks to start or run a pipeline (or invokes `/pipeline <objective>`):
-1. **Immediately execute the pipeline** in the background using `run_command`:
-   ```bash
-   pipeline start [--profile <profile>] "<objective>"
-   ```
-2. Running this command creates an orchestration run (via Orca Native Orchestrator or Standalone Direct Runner if Orca is not available).
-3. Inform the user of the Pipeline ID and profile being used (defaults to `ecc`).
-4. Stages 1–8 execute sequentially to generate design and architecture artifacts, halting at Stage 9 (`plan`) awaiting human approval before advancing to implementation (Stages 10–20).
+1. **IN-SESSION DIRECT EXECUTION (Default `ecc` Profile)**:
+   - When running in an interactive Antigravity chat session, the agent executes the pipeline **directly within the current session**.
+   - Do **NOT** run detached background processes or spawn separate sessions that break interactivity.
+   - Initialize pipeline tracking in `.pipeline/<pipeline-id>/` (via `pipeline create` or direct state creation).
+   - Inform the user of the Pipeline ID, profile being used (defaults to `ecc`), and that stages are running live in the main session.
+   - Stages 1–8 execute sequentially to generate design and architecture artifacts.
+   - Stage 9 (`plan`) synthesizes the 360° Master Engineering Plan.
+   - **Halt at Mandatory Plan Approval Gate**: Call `ask_question` to request user review and approval before advancing to implementation (Stages 10–20).
+
+2. **BACKGROUND CLI RUNNER (External / Headless Mode)**:
+   - When invoked from an external terminal or headless automation, `pipeline start [--profile <profile>] "<objective>"` launches the background runner loop.
 
 ## Available Profiles
  
@@ -47,44 +51,49 @@ pipeline init
 # or if running from plugin directory:
 bun run ~/.gemini/config/plugins/pipeline/bin/pipeline.ts init
 
-# 1. Start a new pipeline run (uses default profile: ecc)
+# 1. Create pipeline directory and initialize state (in-session helper)
+pipeline create "Objective description"
+pipeline create --profile standard "Implement simple feature"
+
+# 2. Start a background daemon runner (for external/standalone CLI execution)
 pipeline start "Objective description"
-pipeline start --profile standard "Implement simple feature"
 pipeline start --profile secure "Implement OAuth PKCE login"
 
-# 2. Approve plan stage (Mandatory Plan Approval Gate)
+# 3. Update stage state (in-session sync helper)
+pipeline stage <pipeline-id> <stage-id> <status> [--notes <notes>] [--error <error>]
+
+# 4. Approve plan stage (Mandatory Plan Approval Gate)
 pipeline approve <pipeline-id>
 
-# 3. Inspect active or specific pipeline status
+# 5. Inspect active or specific pipeline status
 pipeline status
 pipeline status pipe-<id>
 
-# 4. List recent pipeline executions
+# 6. List recent pipeline executions
 pipeline list
 
-# 5. View stage artifacts and logs
+# 7. View stage artifacts and logs
 pipeline logs <pipeline-id>
 
-# 6. Stop a running pipeline
+# 8. Stop a running pipeline
 pipeline stop <pipeline-id>
 
-# 7. Resume a paused or approved pipeline
+# 9. Resume a paused or approved pipeline
 pipeline resume <pipeline-id>
 
-# 8. Diagnostic health check
+# 10. Diagnostic health check
 pipeline doctor
 ```
 
 ## Dual-Harness Execution (Antigravity & OMP)
 
 The pipeline orchestrator is dual-harness native:
-- **Google Antigravity (`agy`)**: When running in Antigravity or when `agy` is available, stages automatically dispatch to specialized built-in Antigravity subagents:
+- **Google Antigravity (`agy`)**: When running in Antigravity or when `agy` is available, stages automatically dispatch to specialized built-in Antigravity subagents or execute in-session:
   - `architect` → `architect-reviewer`
   - `security` / `security-review` → `security-auditor`
   - `coder` / `fixer` → `fullstack-developer`
   - `tester` → `test-automator`
   - `reviewer` → `code-reviewer`
-  Headless worker stages automatically include `--dangerously-skip-permissions` to ensure continuous autonomous execution without hanging on user confirmation dialogs.
 - **Oh-My-Pi (`omp`)**: When running in OMP, stages seamlessly dispatch workers to the `omp` interactive CLI harness.
 - **Auto-Detection**: Configured default `agent: auto` automatically detects the active environment or available CLI (`agy` prioritized if inside Antigravity).
 
@@ -104,7 +113,6 @@ Across all profiles (`ecc`, `full`, `standard`, `secure`, `simple`), the orchest
 - Execution will **NOT** transition to code implementation until explicit user approval is provided:
   - The user reviews `plan.md` (and `test-plan.md`).
   - The user may edit or update `plan.md` directly on disk, or provide feedback/adjustments. Downstream implementation stages always consume the latest `plan.md` from disk.
-  - In interactive terminals, prompt `[y/N]` directly.
   - In interactive chat/AGY sessions, the agent **MUST use `ask_question`** or wait for direct human user input.
   - In background/Orca sessions, approve via `pipeline approve <pipeline-id>`.
 - **STRICT ZERO AUTO-APPROVAL POLICY**:
@@ -134,6 +142,3 @@ When executing the `ecc` profile (`/pipeline --profile ecc <objective>` or defau
 4. **Post-Approval Execution & Verification Loop (Stages 10–20)**:
    - Upon user approval, the pipeline continues through `acceptance-tests`, `tdd`, `implement`, `code-review`, `security-review`, `design-conformance`, `remediation`, `test`, `verification`, `audit`, and `evidence`.
    - Final state is marked `RELEASE READY` only when all evidence domains in `evidence.json` pass.
-
-
-
