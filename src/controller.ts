@@ -375,13 +375,16 @@ export class PipelineController {
   public printApprovalBanner(state: PipelineState, pipelineDir: string): void {
     const planPath = path.join(pipelineDir, 'plan.md');
     console.log(`\n================================================================================`);
-    console.log(`⏸️  **Awaiting Plan approval** — Please respond to continue.`);
+    console.log(`⏸️  **Awaiting Plan approval** — Please review the generated plan to continue.`);
     console.log(`Pipeline ID:  ${state.id}`);
     console.log(`Objective:    ${state.objective}`);
     console.log(`Plan file:    ${planPath}`);
-    console.log(`\nTo approve plan and proceed to implementation:`);
-    console.log(`  • Terminal: Run 'pipeline approve ${state.id}'`);
-    console.log(`  • Chat / TTY: Respond with "approved", "ok", "proceed", or "lgtm"`);
+    console.log(`\nNext steps:`);
+    console.log(`  1. Review the generated plan in: ${planPath}`);
+    console.log(`  2. (Optional) Edit or update plan.md directly if any adjustments are needed.`);
+    console.log(`  3. To approve and proceed to implementation:`);
+    console.log(`     • Terminal: Run 'pipeline approve ${state.id}'`);
+    console.log(`     • Chat / TTY: Respond with "approved", "ok", "proceed", or "lgtm"`);
     console.log(`================================================================================\n`);
   }
 
@@ -392,7 +395,7 @@ export class PipelineController {
     });
 
     return new Promise((resolve) => {
-      rl.question('Approve plan to proceed to implementation? (y/N): ', (answer) => {
+      rl.question('Review/edit plan.md if needed. Approve plan to proceed to implementation? (y/N): ', (answer) => {
         rl.close();
         const trimmed = answer.trim().toLowerCase();
         const isApproved = ['y', 'yes', 'approved', 'proceed', 'go ahead', 'lgtm', 'ok'].includes(trimmed);

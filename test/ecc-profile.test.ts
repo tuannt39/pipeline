@@ -45,20 +45,22 @@ describe('ECC Profile', () => {
     expect(() => validateDAG(profile)).not.toThrow();
   });
 
-  it('verifies architecture-review requires approval before plan can run', () => {
+  it('verifies plan stage requires approval after creating plan.md', () => {
     const config = structuredClone(DEFAULT_CONFIG);
     const profile = loadProfile('ecc', config);
 
     const archReview = profile.stages.find((s) => s.id === 'architecture-review');
     expect(archReview).toBeDefined();
-    expect(archReview?.require_approval).toBe(true);
+    expect(archReview?.require_approval).toBeUndefined();
 
     const planStage = profile.stages.find((s) => s.id === 'plan');
     expect(planStage).toBeDefined();
-    expect(planStage?.deps).toContain('architecture-review');
+    expect(planStage?.require_approval).toBe(true);
+    expect(planStage?.outputs).toContain('plan.md');
+    expect(planStage?.outputs).toContain('test-plan.md');
   });
 
-  it('blocks plan stage from being ready when waiting_approval after architecture-review', () => {
+  it('blocks acceptance-tests stage from being ready when waiting_approval after plan is generated', () => {
     const config = structuredClone(DEFAULT_CONFIG);
     const profile = loadProfile('ecc', config);
 
@@ -67,8 +69,8 @@ describe('ECC Profile', () => {
       stagesState[stage.id] = { status: 'pending' };
     }
 
-    // Mark stages 1-8 completed, but pipeline status is waiting_approval
-    const prePlanStages = [
+    // Mark stages 1-9 completed (pre-plan analysis + plan), but pipeline status is waiting_approval
+    const completedStages = [
       'requirement',
       'acceptance',
       'impact-analysis',
@@ -77,8 +79,9 @@ describe('ECC Profile', () => {
       'design-patterns',
       'adr',
       'architecture-review',
+      'plan',
     ];
-    for (const sId of prePlanStages) {
+    for (const sId of completedStages) {
       stagesState[sId] = { status: 'completed' };
     }
 
@@ -92,7 +95,7 @@ describe('ECC Profile', () => {
       fixLoops: 0,
       approval: {
         required: true,
-        stageId: 'architecture-review',
+        stageId: 'plan',
         approved: false,
       },
       createdAt: new Date().toISOString(),
@@ -109,13 +112,13 @@ describe('ECC Profile', () => {
       status: 'running',
       approval: {
         required: true,
-        stageId: 'architecture-review',
+        stageId: 'plan',
         approved: true,
       },
     };
 
     const readyAfterApproval = getReadyStages(stateApproved, profile);
     expect(readyAfterApproval.length).toBe(1);
-    expect(readyAfterApproval[0].id).toBe('plan');
+    expect(readyAfterApproval[0].id).toBe('acceptance-tests');
   });
 });

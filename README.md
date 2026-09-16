@@ -77,11 +77,11 @@ For a deep-dive analysis into layers, role boundaries, IPC protocols, and state 
 
 | Profile | Flow | Use Case |
 |---|---|---|
-| `ecc` | `REQUIREMENT` → `ACCEPTANCE` → `IMPACT` → `BLUEPRINT` → `ARCH` → `PATTERNS` → `ADR` → `ARCH-REVIEW` → [GATE] → `PLAN` → `ACC-TESTS` → `TDD` → `IMPLEMENT` → `CODE-REVIEW` → `SEC-REVIEW` → `DESIGN-CONFORMANCE` → `REMEDIATION` → `TEST` → `VERIFICATION` → `AUDIT` → `EVIDENCE` | **Default**: Comprehensive 20-stage ECC engineering lifecycle with pre-plan confirmation gate and 360° master plan |
+| `ecc` | `REQUIREMENT` → `ACCEPTANCE` → `IMPACT` → `BLUEPRINT` → `ARCH` → `PATTERNS` → `ADR` → `ARCH-REVIEW` → `PLAN` → [GATE] → `ACC-TESTS` → `TDD` → `IMPLEMENT` → `CODE-REVIEW` → `SEC-REVIEW` → `DESIGN-CONFORMANCE` → `REMEDIATION` → `TEST` → `VERIFICATION` → `AUDIT` → `EVIDENCE` | **Default**: Comprehensive 20-stage ECC engineering lifecycle with 360° master plan creation and mandatory user plan review/approval gate |
 | `full` | `SPEC` → `[ARCHITECT, SECURITY, PATTERN]` → `PLAN` → [GATE] → `IMPLEMENT` → `TEST` → `SECURITY-2` → `REVIEW` | Complete multi-stage analysis, mandatory plan approval gate, implementation & security verification |
 | `standard` | `PLAN` → [GATE] → `IMPLEMENT` → `TEST` → `REVIEW` | Production workflow with plan approval and fix loop |
-| `secure` | `PLAN` → `[ARCHITECT, SECURITY, PATTERN]` in parallel → `IMPLEMENT` → `TEST` → `REVIEW` → `FINAL-SECURITY` | Security-critical, auth, API, or multi-tenant code |
-| `simple` | `IMPLEMENT` → `TEST` → `REVIEW` | Quick bug fixes, typos, small features |
+| `secure` | `PLAN` → [GATE] → `[ARCHITECT, SECURITY, PATTERN]` in parallel → `IMPLEMENT` → `TEST` → `REVIEW` → `FINAL-SECURITY` | Security-critical, auth, API, or multi-tenant code |
+| `simple` | `PLAN` → [GATE] → `IMPLEMENT` → `TEST` → `REVIEW` | Fast path with lightweight plan, quick bug fixes, small features |
 
 ---
 

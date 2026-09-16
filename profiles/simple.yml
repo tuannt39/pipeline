@@ -1,14 +1,30 @@
 name: simple
-description: Fast path for simple changes (implement -> test -> review)
+description: Fast path with lightweight plan (plan -> implement -> test -> review)
 
 stages:
+  - id: plan
+    role: planner
+    agent: auto
+    worktree: active
+    mode: analysis
+    read_only: true
+    require_approval: true
+    outputs:
+      - plan.md
+    next:
+      - implement
+
   - id: implement
     role: coder
     agent: auto
     worktree: active
     mode: goal
+    inputs:
+      - plan.md
     outputs:
       - implementation.md
+    deps:
+      - plan
     next:
       - test
 

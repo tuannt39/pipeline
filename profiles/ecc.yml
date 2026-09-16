@@ -1,5 +1,5 @@
 name: ecc
-description: Single-session full engineering pipeline with ECC methodology and mandatory user confirmation gate before plan creation
+description: Single-session full engineering pipeline with ECC methodology and mandatory user plan approval gate
 
 stages:
   - id: requirement
@@ -100,8 +100,6 @@ stages:
   - id: architecture-review
     role: reviewer
     read_only: true
-    require_approval: true
-    gate_message: "Mandatory User Confirmation Gate: Pre-plan analysis & architecture completed. Confirm before creating plan.md."
     inputs:
       - architecture.md
       - design-patterns.md
@@ -116,6 +114,7 @@ stages:
   - id: plan
     role: planner
     read_only: true
+    require_approval: true
     inputs:
       - requirement.md
       - acceptance.md

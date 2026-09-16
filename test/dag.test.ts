@@ -47,6 +47,30 @@ describe('DAG Engine', () => {
     expect(ready[0].id).toBe('plan');
   });
 
+  it('computes initial ready stage for simple profile as plan', () => {
+    const profile = BUILTIN_PROFILES.simple;
+    const state: PipelineState = {
+      id: 'test-simple-1',
+      objective: 'test simple',
+      profile: 'simple',
+      workspace: { mode: 'active', path: '/test' },
+      status: 'pending',
+      stages: {
+        plan: { status: 'pending' },
+        implement: { status: 'pending' },
+        test: { status: 'pending' },
+        review: { status: 'pending' },
+      },
+      fixLoops: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const ready = getReadyStages(state, profile);
+    expect(ready.length).toBe(1);
+    expect(ready[0].id).toBe('plan');
+  });
+
   it('computes parallel ready stages in secure profile once plan is completed', () => {
     const profile = BUILTIN_PROFILES.secure;
     const state: PipelineState = {

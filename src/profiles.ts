@@ -10,15 +10,28 @@ export { PACKAGE_ROOT, safeValidatePipelineProfile };
 export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
   simple: {
     name: 'simple',
-    description: 'Fast path for simple changes (implement -> test -> review)',
+    description: 'Fast path with lightweight plan (plan -> implement -> test -> review)',
     stages: [
+      {
+        id: 'plan',
+        role: 'planner',
+        agent: 'auto',
+        worktree: 'active',
+        mode: 'analysis',
+        read_only: true,
+        require_approval: true,
+        outputs: ['plan.md'],
+        next: ['implement'],
+      },
       {
         id: 'implement',
         role: 'coder',
         agent: 'auto',
         worktree: 'active',
         mode: 'goal',
+        inputs: ['plan.md'],
         outputs: ['implementation.md'],
+        deps: ['plan'],
         next: ['test'],
       },
       {
@@ -300,7 +313,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
   ecc: {
     name: 'ecc',
     description:
-      'Single-session full engineering pipeline with ECC methodology and mandatory user confirmation gate before plan creation',
+      'Single-session full engineering pipeline with ECC methodology and mandatory user plan approval gate',
     stages: [
       {
         id: 'requirement',
@@ -383,7 +396,6 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
         agent: 'auto',
         worktree: 'active',
         read_only: true,
-        require_approval: true,
         inputs: ['architecture.md', 'design-patterns.md', 'adr/ADR-001.md'],
         outputs: ['architecture-review.md'],
         deps: ['adr'],
@@ -395,6 +407,7 @@ export const BUILTIN_PROFILES: Record<string, PipelineProfile> = {
         agent: 'auto',
         worktree: 'active',
         read_only: true,
+        require_approval: true,
         inputs: ['requirement.md', 'acceptance.md', 'architecture.md', 'design-patterns.md', 'architecture-review.md'],
         outputs: ['plan.md', 'test-plan.md'],
         deps: ['architecture-review'],
