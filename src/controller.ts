@@ -201,9 +201,15 @@ export class PipelineController {
       if (state.status === 'waiting_approval') {
         // If interactive TTY session, prompt user directly
         if (process.stdin.isTTY) {
-          const approved = await this.askUserApprovalTTY(state);
-          if (approved) {
+          const result = await this.askUserApprovalTTY(state);
+          if (result === 'approved') {
             this.approvePlan(pipelineDir, 'interactive-user');
+            state = loadState(pipelineDir);
+            onUpdate?.(state);
+            continue;
+          } else if (result.startsWith('revise:')) {
+            const feedback = result.slice('revise:'.length);
+            this.requestPlanRevision(pipelineDir, feedback);
             state = loadState(pipelineDir);
             onUpdate?.(state);
             continue;
@@ -359,6 +365,15 @@ export class PipelineController {
       (stageId === 'plan' && this.config.policies.require_plan_approval !== false);
 
     if (requiresApproval && !state.approval?.approved) {
+      // Validate plan quality and warn if issues detected
+      const validation = this.validatePlanArtifact(pipelineDir, stageDef);
+      if (!validation.valid) {
+        console.warn(`[pipeline-controller] ⚠️ Plan quality warnings:`);
+        for (const issue of validation.issues) {
+          console.warn(`  - ${issue}`);
+        }
+      }
+
       updateStageState(state, stageId, {
         status: 'completed',
         endTime: new Date().toISOString(),
@@ -402,21 +417,33 @@ export class PipelineController {
     console.log(`  3. To approve and proceed to implementation:`);
     console.log(`     • Terminal: Run 'pipeline approve ${state.id}'`);
     console.log(`     • Chat / TTY: Respond with "approved", "ok", "proceed", or "lgtm"`);
+    console.log(`  4. To request a revision with feedback:`);
+    console.log(`     • Terminal: Run 'pipeline revise ${state.id} "Your feedback here"'`);
     console.log(`================================================================================\n`);
   }
 
-  private async askUserApprovalTTY(state: PipelineState): Promise<boolean> {
+  private async askUserApprovalTTY(state: PipelineState): Promise<'approved' | 'cancelled' | string> {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
     });
 
     return new Promise((resolve) => {
-      rl.question('Review/edit plan.md if needed. Approve plan to proceed to implementation? (y/N): ', (answer) => {
+      rl.question('Review plan.md. (a)pprove / (r)evise / (c)ancel: ', (answer) => {
         rl.close();
         const trimmed = answer.trim().toLowerCase();
-        const isApproved = ['y', 'yes', 'approved', 'proceed', 'go ahead', 'lgtm', 'ok'].includes(trimmed);
-        resolve(isApproved);
+        if (['y', 'yes', 'a', 'approved', 'approve', 'proceed', 'go ahead', 'lgtm', 'ok'].includes(trimmed)) {
+          resolve('approved');
+        } else if (trimmed.startsWith('r') && trimmed !== 'reject') {
+          // Ask for revision feedback
+          const rl2 = readline.createInterface({ input: process.stdin, output: process.stdout });
+          rl2.question('Revision feedback: ', (feedback) => {
+            rl2.close();
+            resolve(`revise:${feedback.trim() || 'Please improve the plan'}`);
+          });
+        } else {
+          resolve('cancelled');
+        }
       });
     });
   }
@@ -442,6 +469,61 @@ export class PipelineController {
     saveState(pipelineDir, state);
     console.log(`[pipeline-controller] Plan approved for pipeline "${state.id}" by ${approvedBy}. Resuming workflow.`);
     return state;
+  }
+
+  public requestPlanRevision(pipelineIdOrDir: string, feedback: string): PipelineState {
+    const pipelineDir = pipelineIdOrDir.includes(path.sep)
+      ? pipelineIdOrDir
+      : getPipelineDir(pipelineIdOrDir, this.config.artifacts.root, this.cwd);
+    const state = loadState(pipelineDir);
+
+    const planStageId = state.approval?.stageId || 'plan';
+
+    updateStageState(state, planStageId, {
+      status: 'pending',
+      notes: `Revision requested: ${feedback.slice(0, 200)}`,
+    });
+
+    state.approval = undefined;
+    state.status = 'running';
+
+    const feedbackContent = `\n\n## Plan Revision Feedback (${new Date().toISOString()})\n${feedback}\n`;
+    const requestPath = path.join(pipelineDir, 'request.md');
+    try {
+      fs.appendFileSync(requestPath, feedbackContent);
+    } catch {
+      // Non-critical: feedback is also stored in stage notes
+    }
+
+    saveState(pipelineDir, state);
+    console.log(`[pipeline-controller] Plan revision requested for pipeline "${state.id}". Re-running plan stage.`);
+    return state;
+  }
+
+  private validatePlanArtifact(pipelineDir: string, stage: StageDefinition): {
+    valid: boolean;
+    issues: string[];
+  } {
+    const planContent = readArtifact(pipelineDir, 'plan.md') || '';
+    const issues: string[] = [];
+
+    if (planContent.length < 500) {
+      issues.push('Plan is suspiciously short (< 500 chars)');
+    }
+
+    const requiredPatterns = [
+      { pattern: /##.*(?:objective|summary|overview)/i, label: 'Objective/Summary section' },
+      { pattern: /##.*(?:implementation|changes|plan|steps)/i, label: 'Implementation/Changes section' },
+      { pattern: /##.*(?:test|testing|verification)/i, label: 'Test strategy section' },
+    ];
+
+    for (const { pattern, label } of requiredPatterns) {
+      if (!pattern.test(planContent)) {
+        issues.push(`Missing: ${label}`);
+      }
+    }
+
+    return { valid: issues.length === 0, issues };
   }
 
   private async reconcileRunningStages(

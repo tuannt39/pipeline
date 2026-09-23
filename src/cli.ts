@@ -389,6 +389,30 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
       break;
     }
 
+    case 'revise': {
+      const targetId = argv[1];
+      const feedbackParts: string[] = [];
+
+      for (let i = 2; i < argv.length; i++) {
+        feedbackParts.push(argv[i]);
+      }
+
+      const feedback = feedbackParts.join(' ').trim();
+      if (!targetId || !feedback) {
+        console.error('Usage: pipeline revise <pipeline-id> <feedback>');
+        console.error('Example: pipeline revise pipe-abc123 "Add more detail on database migration"');
+        process.exit(1);
+      }
+
+      const controller = new PipelineController({ config, cwd });
+      const updatedState = controller.requestPlanRevision(targetId, feedback);
+
+      console.log(`Plan revision requested for pipeline "${targetId}".`);
+      console.log(`Status is now: ${updatedState.status.toUpperCase()}`);
+      console.log(`To re-run the pipeline, use: pipeline resume ${targetId}`);
+      break;
+    }
+
     case 'watch': {
       let targetId: string | undefined;
       let intervalSec = 180; // 3 minutes default
@@ -458,6 +482,7 @@ USAGE:
   pipeline start [--profile <profile>] [--agent <agy|omp>] [--worktree <worktree>] <objective>
   pipeline stage <id> <stage-id> <status> [--notes <notes>] [--error <error>]
   pipeline approve [<id>] [--resume]
+  pipeline revise <id> <feedback>
   pipeline resume [<id>]
   pipeline watch [<id>] [--interval <sec>]
   pipeline status [<id>]

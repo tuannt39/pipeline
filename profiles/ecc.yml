@@ -131,9 +131,13 @@ stages:
       - iterative-retrieval
     inputs:
       - requirement.md
+      - business-rules.md
       - acceptance.md
+      - impact-analysis.md
+      - blueprint.md
       - architecture.md
       - design-patterns.md
+      - adr/ADR-001.md
       - architecture-review.md
     outputs:
       - plan.md

@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import { StageDefinition } from './types';
 import { EccKnowledgeAdapter, defaultEccAdapter } from './ecc-adapter';
@@ -13,6 +14,34 @@ export interface PromptContext {
   inputs?: string[];
   fixIteration?: number;
   adapter?: EccKnowledgeAdapter;
+}
+
+export function buildProjectContextSnippet(workspace: string): string {
+  const contextFiles = [
+    'package.json', 'README.md',
+    'tsconfig.json', 'pyproject.toml', 'Cargo.toml',
+    'go.mod', 'composer.json', 'Gemfile',
+    '.gemini/GEMINI.md',
+  ];
+
+  const found: string[] = [];
+  for (const f of contextFiles) {
+    const fullPath = path.join(workspace, f);
+    try {
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        found.push(fullPath);
+      }
+    } catch {
+      // ignore inaccessible files
+    }
+  }
+
+  if (found.length === 0) return '';
+
+  return `
+PROJECT CONTEXT (Read these files FIRST for tech stack awareness):
+${found.map(f => `- ${f}`).join('\n')}
+`;
 }
 
 export function buildWorkerCompletionSnippet(taskId: string, dispatchId: string, defaultSubject: string): string {
@@ -47,6 +76,8 @@ orca orchestration send \\
 export function buildPlannerPrompt(ctx: PromptContext): string {
   const planFile = path.join(ctx.pipelineDir, 'plan.md');
   const hasPrePlanInputs = ctx.inputs && ctx.inputs.length > 0;
+  const projectContext = buildProjectContextSnippet(ctx.workspace);
+
   const inputSection = hasPrePlanInputs
     ? `
 MANDATORY INPUTS (PRE-PLAN STAGES ARTIFACTS):
@@ -55,9 +86,26 @@ ${ctx.inputs!.map((f) => `- ${path.join(ctx.pipelineDir, f)}`).join('\n')}
 Read and thoroughly synthesize all completed pre-plan analysis artifacts before drafting plan.md.
 `
     : `
-READ:
-- Entire repository structure and code files relevant to the objective
-- Current git state and branch history
+MANDATORY RESEARCH PROTOCOL (Execute in this exact order before writing plan.md):
+1. SCAN PROJECT STRUCTURE:
+   - Run: find . -type f -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' | head -200
+   - Identify: language, framework, package manager, test runner, build system
+
+2. ANALYZE EXISTING PATTERNS:
+   - Examine 3-5 representative source files to understand coding conventions
+   - Identify existing design patterns, naming conventions, file organization
+   - Check for existing tests and test patterns
+
+3. ASSESS SCOPE & IMPACT:
+   - Identify ALL files that need modification for the objective
+   - Map dependencies between affected files
+   - Check for related tests that need updating
+
+4. VERIFY CURRENT STATE:
+   - Run: git status && git log --oneline -5
+   - Check for uncommitted changes or WIP work
+
+DO NOT proceed to writing plan.md until ALL research steps are complete.
 `;
 
   const structureSection = hasPrePlanInputs
@@ -80,14 +128,42 @@ PART II: EXECUTION & VERIFICATION ROADMAP (Detailed plan for Stages 9–20)
 12. Remediation, verification loop, and evidence domain criteria for release readiness
 `
     : `
-plan.md MUST CONTAIN:
-1. Current architecture analysis
-2. Relevant files to touch
-3. Proposed changes step-by-step
-4. Dependencies & library requirements
-5. Risks & mitigations
-6. Test strategy
-7. Acceptance criteria
+plan.md MUST CONTAIN these exact sections with ## headers:
+
+## 1. Objective Summary
+- Restate the objective in your own words
+- Success criteria (measurable outcomes)
+
+## 2. Codebase Analysis
+- Project tech stack (language, framework, key dependencies)
+- Existing architecture patterns identified
+- Relevant conventions and style guide
+
+## 3. Impact Analysis
+Table of files to create, modify, or delete with reasons:
+| File | Action | Reason |
+|------|--------|--------|
+
+## 4. Implementation Plan
+Step-by-step with exact file paths and code-level changes.
+Each step must specify: file path, what changes, and dependencies on prior steps.
+
+## 5. Dependencies & Prerequisites
+- New packages/libraries needed
+- Configuration changes required
+
+## 6. Risk Assessment
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+
+## 7. Test Strategy
+- Existing tests to verify (list commands)
+- New tests to write
+- Edge cases to cover
+
+## 8. Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
 `;
 
   return `
@@ -97,7 +173,7 @@ You are the planning agent.
 PIPELINE: ${ctx.pipelineId}
 OBJECTIVE: ${ctx.objective}
 WORKSPACE: ${ctx.workspace}
-${inputSection}
+${projectContext}${inputSection}
 DO NOT:
 - modify application source code
 - commit changes
@@ -108,6 +184,14 @@ ${planFile}
 ${structureSection}
 PLAN APPROVAL GATE:
 Upon completing plan.md, the orchestrator triggers a mandatory approval gate (⏸️ Awaiting Plan approval). The user reviews and must approve this plan before implementation can start. Ensure your plan is clear, comprehensive, and unambiguous.
+
+SELF-VERIFICATION BEFORE COMPLETION:
+Before reporting completion, verify your plan addresses:
+- [ ] Every aspect of the stated objective
+- [ ] Specific file paths (not vague references)
+- [ ] Concrete test strategy with verifiable commands
+- [ ] Clear acceptance criteria
+If any check fails, revise plan.md before reporting done.
 ${buildWorkerCompletionSnippet(ctx.taskId, ctx.dispatchId, `Plan complete for ${ctx.pipelineId}`)}
 `.trim();
 }
