@@ -491,6 +491,12 @@ export function buildPromptForStage(ctx: PromptContext): string {
 
   const eccBlocks: string[] = [];
 
+  const effectiveAgent = ctx.stage.ecc_agent || eccSummary.agent?.name;
+  if (effectiveAgent && effectiveAgent !== 'none') {
+    const agentInstruction = adapter.getAgentInstructionSync(effectiveAgent);
+    if (agentInstruction) eccBlocks.push(agentInstruction);
+  }
+
   const skills = [...new Set([...(ctx.stage.skills || []), ...(ctx.stage.ecc_skills || [])])];
   if (skills.length > 0) {
     const skillGuideline = adapter.resolveStageSkillsSync(skills);
@@ -526,6 +532,9 @@ export function buildPromptForStage(ctx: PromptContext): string {
     `Stage Role/ID:      ${ctx.stage.id} (${ctx.stage.role})`,
     `Agent Persona:      ${eccSummary.agentPersona}`,
   ];
+  if (eccSummary.agent) {
+    eccHeaderLines.push(`Injected Agent:     ${eccSummary.agent.name} [${eccSummary.agent.source}]`);
+  }
   if (eccSummary.skills.length > 0) {
     eccHeaderLines.push(`Injected Skills:    ${eccSummary.skills.map((s) => `${s.name} [${s.source}]`).join(', ')}`);
   }

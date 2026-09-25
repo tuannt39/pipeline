@@ -199,5 +199,61 @@ ecc:
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it('verifies ECC agent, rule, and workflow synchronization across all profiles', () => {
+    const config = structuredClone(DEFAULT_CONFIG);
+
+    // Simple profile
+    const simple = loadProfile('simple', config);
+    expect(simple.stages.find((s) => s.id === 'plan')?.ecc_agent).toBe('planner');
+    expect(simple.stages.find((s) => s.id === 'implement')?.ecc_rules).toContain('common');
+    expect(simple.stages.find((s) => s.id === 'test')?.ecc_agent).toBe('tdd-guide');
+    expect(simple.stages.find((s) => s.id === 'test')?.ecc_rules).toContain('common');
+    expect(simple.stages.find((s) => s.id === 'review')?.ecc_agent).toBe('code-reviewer');
+    expect(simple.stages.find((s) => s.id === 'review')?.ecc_rules).toContain('common');
+    expect(simple.stages.find((s) => s.id === 'review')?.ecc_workflows).toContain('orch-review');
+
+    // Standard profile
+    const standard = loadProfile('standard', config);
+    expect(standard.stages.find((s) => s.id === 'plan')?.ecc_agent).toBe('planner');
+    expect(standard.stages.find((s) => s.id === 'implement')?.ecc_rules).toContain('common');
+    expect(standard.stages.find((s) => s.id === 'test')?.ecc_agent).toBe('tdd-guide');
+    expect(standard.stages.find((s) => s.id === 'review')?.ecc_agent).toBe('code-reviewer');
+    expect(standard.stages.find((s) => s.id === 'review')?.ecc_workflows).toContain('orch-review');
+
+    // Secure profile
+    const secure = loadProfile('secure', config);
+    expect(secure.stages.find((s) => s.id === 'plan')?.ecc_agent).toBe('planner');
+    expect(secure.stages.find((s) => s.id === 'architecture')?.ecc_agent).toBe('architect');
+    expect(secure.stages.find((s) => s.id === 'security')?.ecc_agent).toBe('security-reviewer');
+    expect(secure.stages.find((s) => s.id === 'pattern')?.ecc_agent).toBe('code-architect');
+    expect(secure.stages.find((s) => s.id === 'review')?.ecc_agent).toBe('code-reviewer');
+    expect(secure.stages.find((s) => s.id === 'final-security')?.ecc_agent).toBe('security-reviewer');
+
+    // Full profile
+    const full = loadProfile('full', config);
+    expect(full.stages.find((s) => s.id === 'spec')?.ecc_agent).toBe('planner');
+    expect(full.stages.find((s) => s.id === 'architecture')?.ecc_agent).toBe('architect');
+    expect(full.stages.find((s) => s.id === 'security')?.ecc_agent).toBe('security-reviewer');
+    expect(full.stages.find((s) => s.id === 'pattern')?.ecc_agent).toBe('code-architect');
+    expect(full.stages.find((s) => s.id === 'plan')?.ecc_agent).toBe('planner');
+    expect(full.stages.find((s) => s.id === 'test')?.ecc_agent).toBe('tdd-guide');
+    expect(full.stages.find((s) => s.id === 'security-2')?.ecc_agent).toBe('security-reviewer');
+    expect(full.stages.find((s) => s.id === 'review')?.ecc_agent).toBe('code-reviewer');
+
+    // ECC profile
+    const ecc = loadProfile('ecc', config);
+    expect(ecc.stages.find((s) => s.id === 'requirement')?.ecc_agent).toBe('planner');
+    expect(ecc.stages.find((s) => s.id === 'impact-analysis')?.ecc_agent).toBe('code-explorer');
+    expect(ecc.stages.find((s) => s.id === 'blueprint')?.ecc_agent).toBe('architect');
+    expect(ecc.stages.find((s) => s.id === 'design-patterns')?.ecc_agent).toBe('code-architect');
+    expect(ecc.stages.find((s) => s.id === 'architecture-review')?.ecc_workflows).toContain('orch-review');
+    expect(ecc.stages.find((s) => s.id === 'acceptance-tests')?.ecc_agent).toBe('tdd-guide');
+    expect(ecc.stages.find((s) => s.id === 'tdd')?.ecc_agent).toBe('tdd-guide');
+    expect(ecc.stages.find((s) => s.id === 'code-review')?.ecc_workflows).toContain('orch-review');
+    expect(ecc.stages.find((s) => s.id === 'security-review')?.ecc_agent).toBe('security-reviewer');
+    expect(ecc.stages.find((s) => s.id === 'audit')?.ecc_agent).toBe('code-reviewer');
+  });
 });
+
 

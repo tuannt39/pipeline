@@ -5,6 +5,7 @@ stages:
   - id: plan
     role: planner
     agent: auto
+    ecc_agent: planner
     worktree: active
     mode: analysis
     read_only: true
@@ -24,6 +25,8 @@ stages:
     mode: goal
     ecc_skills:
       - coding-standards
+    ecc_rules:
+      - common
     inputs:
       - plan.md
     outputs:
@@ -36,10 +39,14 @@ stages:
   - id: test
     role: tester
     agent: auto
+    ecc_agent: tdd-guide
     worktree: active
     mode: verify
     ecc_skills:
       - verification-loop
+      - tdd-workflow
+    ecc_rules:
+      - common
     inputs:
       - implementation.md
     outputs:
@@ -50,10 +57,15 @@ stages:
   - id: review
     role: reviewer
     agent: auto
+    ecc_agent: code-reviewer
     worktree: active
     mode: review
     ecc_skills:
       - coding-standards
+    ecc_rules:
+      - common
+    ecc_workflows:
+      - orch-review
     inputs:
       - implementation.md
       - test.md

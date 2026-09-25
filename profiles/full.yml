@@ -5,6 +5,7 @@ stages:
   - id: spec
     role: spec-writer
     agent: auto
+    ecc_agent: planner
     worktree: active
     read_only: true
     ecc_skills:
@@ -20,6 +21,7 @@ stages:
   - id: architecture
     role: architect
     agent: auto
+    ecc_agent: architect
     worktree: active
     read_only: true
     ecc_skills:
@@ -37,10 +39,13 @@ stages:
   - id: security
     role: security
     agent: auto
+    ecc_agent: security-reviewer
     worktree: active
     read_only: true
     ecc_skills:
       - security-review
+    ecc_rules:
+      - common
     inputs:
       - spec.md
     outputs:
@@ -53,6 +58,7 @@ stages:
   - id: pattern
     role: design-pattern
     agent: auto
+    ecc_agent: code-architect
     worktree: active
     read_only: true
     ecc_skills:
@@ -69,6 +75,7 @@ stages:
   - id: plan
     role: planner
     agent: auto
+    ecc_agent: planner
     worktree: active
     mode: analysis
     read_only: true
@@ -97,6 +104,8 @@ stages:
     mode: goal
     ecc_skills:
       - coding-standards
+    ecc_rules:
+      - common
     inputs:
       - spec.md
       - plan.md
@@ -113,10 +122,14 @@ stages:
   - id: test
     role: tester
     agent: auto
+    ecc_agent: tdd-guide
     worktree: active
     mode: verify
     ecc_skills:
       - verification-loop
+      - tdd-workflow
+    ecc_rules:
+      - common
     inputs:
       - spec.md
       - plan.md
@@ -129,10 +142,13 @@ stages:
   - id: security-2
     role: security-review
     agent: auto
+    ecc_agent: security-reviewer
     worktree: active
     read_only: true
     ecc_skills:
       - security-review
+    ecc_rules:
+      - common
     inputs:
       - spec.md
       - security-plan.md
@@ -148,10 +164,15 @@ stages:
   - id: review
     role: reviewer
     agent: auto
+    ecc_agent: code-reviewer
     worktree: active
     mode: review
     ecc_skills:
       - coding-standards
+    ecc_rules:
+      - common
+    ecc_workflows:
+      - orch-review
     inputs:
       - spec.md
       - plan.md

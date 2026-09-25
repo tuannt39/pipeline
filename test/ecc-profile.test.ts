@@ -121,4 +121,44 @@ describe('ECC Profile', () => {
     expect(readyAfterApproval.length).toBe(1);
     expect(readyAfterApproval[0].id).toBe('acceptance-tests');
   });
+
+  it('verifies all 20 stages have proper ecc_agent, ecc_skills, ecc_rules, and ecc_workflows assigned', () => {
+    const config = structuredClone(DEFAULT_CONFIG);
+    const profile = loadProfile('ecc', config);
+
+    const planStage = profile.stages.find((s) => s.id === 'plan');
+    expect(planStage?.ecc_agent).toBe('planner');
+    expect(planStage?.ecc_skills).toContain('search-first');
+    expect(planStage?.ecc_skills).toContain('iterative-retrieval');
+
+    const reqStage = profile.stages.find((s) => s.id === 'requirement');
+    expect(reqStage?.ecc_agent).toBe('planner');
+
+    const impactStage = profile.stages.find((s) => s.id === 'impact-analysis');
+    expect(impactStage?.ecc_agent).toBe('code-explorer');
+
+    const archStage = profile.stages.find((s) => s.id === 'architecture');
+    expect(archStage?.ecc_agent).toBe('architect');
+
+    const dpStage = profile.stages.find((s) => s.id === 'design-patterns');
+    expect(dpStage?.ecc_agent).toBe('code-architect');
+
+    const archReviewStage = profile.stages.find((s) => s.id === 'architecture-review');
+    expect(archReviewStage?.ecc_agent).toBe('code-reviewer');
+    expect(archReviewStage?.ecc_rules).toContain('common');
+    expect(archReviewStage?.ecc_workflows).toContain('orch-review');
+
+    const tddStage = profile.stages.find((s) => s.id === 'tdd');
+    expect(tddStage?.ecc_agent).toBe('tdd-guide');
+    expect(tddStage?.ecc_rules).toContain('common');
+
+    const codeReviewStage = profile.stages.find((s) => s.id === 'code-review');
+    expect(codeReviewStage?.ecc_agent).toBe('code-reviewer');
+    expect(codeReviewStage?.ecc_rules).toContain('common');
+    expect(codeReviewStage?.ecc_workflows).toContain('orch-review');
+
+    const secReviewStage = profile.stages.find((s) => s.id === 'security-review');
+    expect(secReviewStage?.ecc_agent).toBe('security-reviewer');
+    expect(secReviewStage?.ecc_rules).toContain('common');
+  });
 });

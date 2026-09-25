@@ -5,7 +5,7 @@ export type { StageEccItem, StageEccSummary, EccStatusSummary } from './types';
 
 export interface EccCatalogItem {
   name: string;
-  category: 'skill' | 'rule' | 'prompt' | 'workflow';
+  category: 'skill' | 'rule' | 'prompt' | 'workflow' | 'agent';
   path: string;
 }
 
@@ -98,6 +98,25 @@ export const BUILTIN_ROLE_PERSONAS: Record<string, string> = {
   'spec-writer': 'Technical Documentation & Specification Specialist. Responsible for precise acceptance criteria, API specifications, and clear system blueprints.',
 };
 
+export const DEFAULT_ROLE_TO_ECC_AGENT: Record<string, string> = {
+  planner: 'planner',
+  plan: 'planner',
+  architect: 'architect',
+  architecture: 'architect',
+  security: 'security-reviewer',
+  'security-review': 'security-reviewer',
+  reviewer: 'code-reviewer',
+  review: 'code-reviewer',
+  tester: 'tdd-guide',
+  qa: 'tdd-guide',
+  verifier: 'tdd-guide',
+  'design-pattern': 'code-architect',
+  pattern: 'code-architect',
+  analyst: 'planner',
+  'spec-writer': 'planner',
+  spec: 'planner',
+};
+
 const MAX_CACHE_SIZE = 500;
 
 export class EccKnowledgeAdapter {
@@ -188,6 +207,34 @@ export class EccKnowledgeAdapter {
   }
 
   /**
+   * Direct O(1) path resolver for agents in external ECC directory
+   */
+  public resolveAgentFilePath(agentName: string): string | undefined {
+    if (!this.eccPath) return undefined;
+    const cleanName = agentName.trim();
+    const candidates = [
+      path.join(this.eccPath, 'agents', `${cleanName}.md`),
+      path.join(this.eccPath, 'agents', cleanName, 'AGENT.md'),
+      path.join(this.eccPath, 'agents', cleanName, 'README.md'),
+      path.join(this.eccPath, 'agents', `${cleanName.toLowerCase()}.md`),
+      path.join(this.eccPath, 'agents', cleanName),
+    ];
+
+    for (const cand of candidates) {
+      const resolved = path.resolve(cand);
+      if (!resolved.startsWith(this.eccPath!)) continue;
+      try {
+        if (fs.existsSync(cand) && fs.statSync(cand).isFile()) {
+          return cand;
+        }
+      } catch {
+        // ignore invalid paths
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Direct O(1) path resolver for rules in external ECC directory
    */
   public resolveRuleFilePath(ruleRef: string): string | undefined {
@@ -256,6 +303,7 @@ export class EccKnowledgeAdapter {
   private async scanDirectory(baseDir: string): Promise<void> {
     const subdirsToScan: Array<{ dirName: string; category: EccCatalogItem['category']; specFile: string }> = [
       { dirName: 'skills', category: 'skill', specFile: 'SKILL.md' },
+      { dirName: 'agents', category: 'agent', specFile: 'AGENT.md' },
       { dirName: 'rules', category: 'rule', specFile: 'RULE.md' },
       { dirName: 'prompts', category: 'prompt', specFile: 'README.md' },
       { dirName: 'workflows', category: 'workflow', specFile: 'WORKFLOW.md' },
@@ -532,6 +580,53 @@ ${instructions.join('\n\n')}
 `.trim();
   }
 
+  public async getAgentInstruction(agentName: string): Promise<string> {
+    return this.getAgentInstructionSync(agentName);
+  }
+
+  public getAgentInstructionSync(agentName: string): string {
+    const key = agentName.toLowerCase().trim();
+    const filePath = this.resolveAgentFilePath(agentName) || (this.catalog.get(`agent:${key}`)?.path);
+
+    if (filePath) {
+      let targetFile = filePath;
+      if (fs.existsSync(targetFile) && fs.statSync(targetFile).isDirectory()) {
+        const potential = path.join(targetFile, 'AGENT.md');
+        if (fs.existsSync(potential)) targetFile = potential;
+      }
+      const cacheKey = targetFile;
+      const cached = this.cache.get(cacheKey);
+      const now = Date.now();
+      if (cached && now - cached.timestamp < this.cacheTtlMs) {
+        return cached.content;
+      }
+
+      try {
+        if (fs.existsSync(targetFile) && fs.statSync(targetFile).isFile()) {
+          const raw = fs.readFileSync(targetFile, 'utf-8');
+          const cleaned = raw.replace(/^\uFEFF/, '').trim().replace(/^---[\s\S]*?---\s*/, '').trim();
+          const lineCount = cleaned.split('\n').length;
+          const formatted = `[ECC AGENT PERSONA: ${agentName.toUpperCase()}]\n${cleaned}`;
+          this.cache.set(cacheKey, { content: formatted, timestamp: now });
+          if (this.cache.size > MAX_CACHE_SIZE) {
+            const oldest = this.cache.keys().next().value;
+            if (oldest) this.cache.delete(oldest);
+          }
+          if (this.debug) console.log(`  ↳ [ECC JIT] Loaded agent '${agentName}' from ${targetFile} (${lineCount} lines)`);
+          return formatted;
+        }
+      } catch {
+        // Fall through
+      }
+    }
+
+    if (BUILTIN_ROLE_PERSONAS[key]) {
+      return `[ECC AGENT PERSONA: ${agentName.toUpperCase()}]\n${BUILTIN_ROLE_PERSONAS[key]}`;
+    }
+
+    return `[ECC AGENT PERSONA: ${agentName.toUpperCase()}]\nSpecialist agent for ${agentName}.`;
+  }
+
   public getRolePersona(role: string): string {
     const key = role.toLowerCase().trim();
     if (BUILTIN_ROLE_PERSONAS[key]) {
@@ -584,6 +679,7 @@ ${instructions.join('\n\n')}
         configured: false,
         valid: false,
         skillsCount: Object.keys(BUILTIN_ECC_SKILLS).length,
+        agentsCount: Object.keys(DEFAULT_ROLE_TO_ECC_AGENT).length,
         rulesCount: 0,
         workflowsCount: 0,
         promptsCount: 0,
@@ -593,6 +689,7 @@ ${instructions.join('\n\n')}
 
     let valid = false;
     let skillsCount = 0;
+    let agentsCount = 0;
     let rulesCount = 0;
     let workflowsCount = 0;
     let promptsCount = 0;
@@ -601,6 +698,7 @@ ${instructions.join('\n\n')}
       valid = fs.existsSync(this.eccPath) && fs.statSync(this.eccPath).isDirectory();
       if (valid) {
         skillsCount = this.countFilesInSubdir('skills', ['SKILL.md', '.md']);
+        agentsCount = this.countFilesInSubdir('agents', ['AGENT.md', '.md']);
         rulesCount = this.countFilesInSubdir('rules', ['RULE.md', '.md']);
         workflowsCount = this.countFilesInSubdir('workflows', ['WORKFLOW.md', '.md', '.workflow.js']);
         promptsCount = this.countFilesInSubdir('prompts', ['.md', '.txt']);
@@ -614,11 +712,21 @@ ${instructions.join('\n\n')}
       path: this.eccPath,
       valid,
       skillsCount: valid ? skillsCount : Object.keys(BUILTIN_ECC_SKILLS).length,
+      agentsCount: valid ? agentsCount : Object.keys(DEFAULT_ROLE_TO_ECC_AGENT).length,
       rulesCount,
       workflowsCount,
       promptsCount,
       source: valid ? 'external' : 'builtin',
     };
+  }
+
+  public inspectAgent(agentName: string): StageEccItem {
+    const key = agentName.toLowerCase().trim();
+    const filePath = this.resolveAgentFilePath(agentName) || this.catalog.get(`agent:${key}`)?.path;
+    if (filePath && fs.existsSync(filePath)) {
+      return { name: agentName, source: 'external', path: filePath };
+    }
+    return { name: agentName, source: 'builtin' };
   }
 
   public inspectSkill(skillName: string): StageEccItem {
@@ -653,15 +761,23 @@ ${instructions.join('\n\n')}
     const rawRules = stage.ecc_rules || [];
     const rawWorkflows = stage.ecc_workflows || [];
 
+    const effectiveAgentName = stage.ecc_agent || DEFAULT_ROLE_TO_ECC_AGENT[stage.role?.toLowerCase()?.trim() || ''];
+    const agent = (effectiveAgentName && effectiveAgentName !== 'none') ? this.inspectAgent(effectiveAgentName) : undefined;
+
     const skills = rawSkills.map((s) => this.inspectSkill(s));
     const rules = rawRules.map((r) => this.inspectRule(r));
     const workflows = rawWorkflows.map((w) => this.inspectWorkflow(w));
 
+    const agentHasExternal = !!(agent && agent.source === 'external');
+    const agentHasBuiltin = !!(agent && stage.ecc_agent && agent.source === 'builtin');
+
     const hasExternal =
+      agentHasExternal ||
       skills.some((s) => s.source === 'external') ||
       rules.some((r) => r.source === 'external') ||
       workflows.some((w) => w.source === 'external');
     const hasBuiltin =
+      agentHasBuiltin ||
       skills.some((s) => s.source === 'builtin') ||
       rules.some((r) => r.source === 'builtin') ||
       workflows.some((w) => w.source === 'builtin');
@@ -676,6 +792,7 @@ ${instructions.join('\n\n')}
       configuredPath: this.eccPath,
       source,
       agentPersona: persona,
+      agent,
       skills,
       rules,
       workflows,
@@ -692,6 +809,10 @@ ${instructions.join('\n\n')}
 
     lines.push(`  [ECC Governance] Stage: "${stage.id}" (${stage.role}) | Agent Persona: ${summary.agentPersona}`);
     lines.push(`  ├─ ECC Directory: ${eccPathLabel}`);
+
+    if (summary.agent) {
+      lines.push(`  ├─ Agent Spec:    ${summary.agent.name} [${summary.agent.source}]`);
+    }
 
     if (summary.skills.length > 0) {
       const formattedSkills = summary.skills.map((s) =>

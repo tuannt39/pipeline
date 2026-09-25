@@ -37,6 +37,7 @@ export const StageDefinitionSchema = z
     deps: z.array(z.string()).optional(),
     next: z.array(z.string()).optional(),
     skills: z.array(z.string()).optional(),
+    ecc_agent: z.string().optional(),
     ecc_skills: z.array(z.string()).optional(),
     ecc_rules: z.array(z.string()).optional(),
     ecc_workflows: z.array(z.string()).optional(),

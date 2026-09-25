@@ -32,6 +32,7 @@ export interface StageDefinition {
   deps?: string[];
   next?: string[];
   skills?: string[];
+  ecc_agent?: string;
   ecc_skills?: string[];
   ecc_rules?: string[];
   ecc_workflows?: string[];
@@ -96,6 +97,7 @@ export interface StageEccSummary {
   configuredPath?: string;
   source: 'external' | 'builtin' | 'mixed';
   agentPersona?: string;
+  agent?: StageEccItem;
   skills: StageEccItem[];
   rules: StageEccItem[];
   workflows: StageEccItem[];
@@ -106,6 +108,7 @@ export interface EccStatusSummary {
   path?: string;
   valid: boolean;
   skillsCount: number;
+  agentsCount?: number;
   rulesCount: number;
   workflowsCount: number;
   promptsCount: number;

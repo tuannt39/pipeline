@@ -88,6 +88,9 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
         if (eccStatus.valid) {
           console.log(`ECC Knowledge Path:    ${eccStatus.path} (✓ Accessible - external JIT enabled)`);
           console.log(`  ├─ Discovered Skills:    ${eccStatus.skillsCount}`);
+          if (eccStatus.agentsCount !== undefined) {
+            console.log(`  ├─ Discovered Agents:    ${eccStatus.agentsCount}`);
+          }
           console.log(`  ├─ Discovered Rules:     ${eccStatus.rulesCount}`);
           console.log(`  ├─ Discovered Workflows: ${eccStatus.workflowsCount}`);
           console.log(`  └─ Discovered Prompts:   ${eccStatus.promptsCount}`);

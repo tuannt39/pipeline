@@ -4,6 +4,7 @@ description: Single-session full engineering pipeline with ECC methodology and m
 stages:
   - id: requirement
     role: analyst
+    ecc_agent: planner
     read_only: true
     ecc_skills:
       - search-first
@@ -16,9 +17,11 @@ stages:
 
   - id: acceptance
     role: analyst
+    ecc_agent: planner
     read_only: true
     ecc_skills:
       - search-first
+      - iterative-retrieval
     inputs:
       - requirement.md
     outputs:
@@ -30,6 +33,7 @@ stages:
 
   - id: impact-analysis
     role: analyst
+    ecc_agent: code-explorer
     read_only: true
     ecc_skills:
       - search-first
@@ -46,6 +50,7 @@ stages:
 
   - id: blueprint
     role: architect
+    ecc_agent: architect
     read_only: true
     ecc_skills:
       - search-first
@@ -63,6 +68,7 @@ stages:
 
   - id: architecture
     role: architect
+    ecc_agent: architect
     read_only: true
     ecc_skills:
       - backend-patterns
@@ -78,6 +84,7 @@ stages:
 
   - id: design-patterns
     role: architect
+    ecc_agent: code-architect
     read_only: true
     ecc_skills:
       - backend-patterns
@@ -93,6 +100,7 @@ stages:
 
   - id: adr
     role: architect
+    ecc_agent: architect
     read_only: true
     ecc_skills:
       - backend-patterns
@@ -108,9 +116,14 @@ stages:
 
   - id: architecture-review
     role: reviewer
+    ecc_agent: code-reviewer
     read_only: true
     ecc_skills:
       - search-first
+    ecc_rules:
+      - common
+    ecc_workflows:
+      - orch-review
     inputs:
       - architecture.md
       - design-patterns.md
@@ -124,6 +137,7 @@ stages:
 
   - id: plan
     role: planner
+    ecc_agent: planner
     read_only: true
     require_approval: true
     ecc_skills:
@@ -149,9 +163,12 @@ stages:
 
   - id: acceptance-tests
     role: tester
+    ecc_agent: tdd-guide
     read_only: true
     ecc_skills:
       - tdd-workflow
+    ecc_rules:
+      - common
     inputs:
       - acceptance.md
       - plan.md
@@ -164,8 +181,11 @@ stages:
 
   - id: tdd
     role: developer
+    ecc_agent: tdd-guide
     ecc_skills:
       - tdd-workflow
+    ecc_rules:
+      - common
     inputs:
       - plan.md
       - acceptance-tests.md
@@ -180,6 +200,8 @@ stages:
     role: coder
     ecc_skills:
       - coding-standards
+    ecc_rules:
+      - common
     inputs:
       - plan.md
       - tdd.md
@@ -193,9 +215,14 @@ stages:
 
   - id: code-review
     role: reviewer
+    ecc_agent: code-reviewer
     read_only: true
     ecc_skills:
       - coding-standards
+    ecc_rules:
+      - common
+    ecc_workflows:
+      - orch-review
     inputs:
       - plan.md
       - implementation.md
@@ -208,9 +235,12 @@ stages:
 
   - id: security-review
     role: security-review
+    ecc_agent: security-reviewer
     read_only: true
     ecc_skills:
       - security-review
+    ecc_rules:
+      - common
     inputs:
       - implementation.md
     outputs:
@@ -222,9 +252,12 @@ stages:
 
   - id: design-conformance
     role: reviewer
+    ecc_agent: code-reviewer
     read_only: true
     ecc_skills:
       - backend-patterns
+    ecc_rules:
+      - common
     inputs:
       - architecture.md
       - design-patterns.md
@@ -240,6 +273,8 @@ stages:
     role: coder
     ecc_skills:
       - coding-standards
+    ecc_rules:
+      - common
     inputs:
       - code-review.md
       - security-review.md
@@ -253,9 +288,12 @@ stages:
 
   - id: test
     role: tester
+    ecc_agent: tdd-guide
     ecc_skills:
       - verification-loop
       - tdd-workflow
+    ecc_rules:
+      - common
     inputs:
       - implementation.md
       - plan.md
@@ -268,8 +306,11 @@ stages:
 
   - id: verification
     role: verifier
+    ecc_agent: tdd-guide
     ecc_skills:
       - verification-loop
+    ecc_rules:
+      - common
     inputs:
       - implementation.md
       - test.md
@@ -282,9 +323,12 @@ stages:
 
   - id: audit
     role: reviewer
+    ecc_agent: code-reviewer
     read_only: true
     ecc_skills:
       - verification-loop
+    ecc_rules:
+      - common
     inputs:
       - requirement.md
       - architecture.md
@@ -299,9 +343,12 @@ stages:
 
   - id: evidence
     role: reviewer
+    ecc_agent: code-reviewer
     read_only: true
     ecc_skills:
       - verification-loop
+    ecc_rules:
+      - common
     inputs:
       - audit.md
       - verification.md

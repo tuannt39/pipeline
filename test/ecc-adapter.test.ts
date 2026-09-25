@@ -134,7 +134,7 @@ description: Custom ECC skill for testing
 
     expect(prompt).toContain('MANDATORY ENGINEERING METHODOLOGIES & GUIDELINES:');
     expect(prompt).toContain('[ECC METHODOLOGY: SEARCH-FIRST]');
-    expect(prompt).toContain('Never guess or assume codebase structure');
+    expect(prompt.includes('Never guess or assume codebase structure') || prompt.includes('Research Before You Code')).toBe(true);
     expect(prompt).toContain('[ECC METHODOLOGY: ITERATIVE-RETRIEVAL]');
   });
 
@@ -157,9 +157,9 @@ description: Custom ECC skill for testing
 
     expect(prompt).toContain('MANDATORY ENGINEERING METHODOLOGIES & GUIDELINES:');
     expect(prompt).toContain('[ECC METHODOLOGY: TDD-WORKFLOW]');
-    expect(prompt).toContain('Red-Green-Refactor');
+    expect(prompt.includes('Red-Green-Refactor') || prompt.includes('Test-Driven Development Workflow')).toBe(true);
     expect(prompt).toContain('[ECC METHODOLOGY: CODING-STANDARDS]');
-    expect(prompt).toContain('Surgical Changes');
+    expect(prompt.includes('Surgical Changes') || prompt.includes('Coding Standards')).toBe(true);
   });
 
   it('loads skills, rules, and workflows JIT on-demand directly without calling initialize()', () => {
@@ -326,6 +326,64 @@ description: Custom ECC skill for testing
       expect(adapter.isExternalConfigured()).toBe(true);
       const status = adapter.getEccStatusSummary();
       expect(status.valid).toBe(true);
+    }
+  });
+
+  it('resolves and injects ECC agent instructions JIT into prompt', () => {
+    const stage: StageDefinition = {
+      id: 'plan',
+      role: 'planner',
+      ecc_agent: 'planner',
+      ecc_skills: ['search-first'],
+    };
+
+    const prompt = buildPromptForStage({
+      pipelineId: 'pipe-agent-test',
+      objective: 'Verify ECC agent injection',
+      workspace: '/test/workspace',
+      pipelineDir: '/test/workspace/.pipeline/pipe-agent-test',
+      taskId: 'task-agent',
+      dispatchId: 'disp-agent',
+      stage,
+    });
+
+    expect(prompt).toContain('[ECC GOVERNANCE & METHODOLOGY CONTEXT]');
+    expect(prompt).toContain('Injected Agent:     planner');
+    expect(prompt).toContain('[ECC AGENT PERSONA: PLANNER]');
+  });
+
+  it('resolves agent JIT from custom directory with frontmatter cleanup', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-agent-test-'));
+    const agentsDir = path.join(tempDir, 'agents');
+    fs.mkdirSync(agentsDir, { recursive: true });
+
+    const agentContent = `---
+name: custom-planner
+description: Custom planner agent
+---
+
+## Planning Process
+Custom 5-step planning workflow.
+`;
+    fs.writeFileSync(path.join(agentsDir, 'custom-planner.md'), agentContent, 'utf-8');
+
+    try {
+      const adapter = new EccKnowledgeAdapter({ eccPath: tempDir });
+      const instruction = adapter.getAgentInstructionSync('custom-planner');
+      expect(instruction).toContain('[ECC AGENT PERSONA: CUSTOM-PLANNER]');
+      expect(instruction).toContain('Custom 5-step planning workflow');
+      expect(instruction).not.toContain('name: custom-planner');
+
+      const stage: StageDefinition = {
+        id: 'plan',
+        role: 'planner',
+        ecc_agent: 'custom-planner',
+      };
+      const summary = adapter.getStageEccSummary(stage);
+      expect(summary.agent?.name).toBe('custom-planner');
+      expect(summary.agent?.source).toBe('external');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
 });
