@@ -109,4 +109,22 @@ describe('CLI Commands & In-Session Helpers', () => {
       process.chdir(origCwd);
     }
   });
+
+  it('runs doctor command and outputs Google Antigravity Native status', async () => {
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (...args: any[]) => logs.push(args.join(' '));
+
+    try {
+      await runCli(['doctor']);
+      const doctorOutput = logs.join('\n');
+      expect(doctorOutput).toContain('Pipeline Orchestrator Doctor (Google Antigravity Native):');
+      expect(doctorOutput).toContain('Active Harness Agent:');
+      expect(doctorOutput).toContain('Execution Mode:        Single-Session In-Session Native');
+      expect(doctorOutput).not.toContain('Orca');
+    } finally {
+      console.log = origLog;
+    }
+  });
 });
+

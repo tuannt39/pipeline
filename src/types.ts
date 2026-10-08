@@ -61,9 +61,6 @@ export interface PipelinePolicies {
 
 export interface PipelineConfig {
   version: number;
-  orca: {
-    command: string;
-  };
   workspace: {
     default: 'active' | 'new';
     create_worktree_only_when_requested: boolean;
@@ -151,34 +148,6 @@ export interface PipelineState {
   updatedAt: string;
 }
 
-export interface OrcaWorkerDonePayload {
-  task_id?: string;
-  dispatch_id?: string;
-  outcome: 'succeeded' | 'failed';
-  files_modified?: string;
-  report_path?: string;
-  phase?: string;
-  [key: string]: unknown;
-}
-
-export interface OrcaMessage {
-  id: string;
-  type: string;
-  from?: string;
-  to?: string;
-  subject?: string;
-  body?: string;
-  priority?: string;
-  payload?: OrcaWorkerDonePayload | Record<string, unknown>;
-  created_at?: string;
-}
-
-export interface OrcaDelivery {
-  id?: string;
-  delivery_id?: string;
-  messages: OrcaMessage[];
-}
-
 import type { z } from 'zod';
 import type {
   StageStatusSchema,
@@ -189,9 +158,6 @@ import type {
   PipelineConfigSchema,
   StageStateSchema,
   PipelineStateSchema,
-  OrcaWorkerDonePayloadSchema,
-  OrcaMessageSchema,
-  OrcaDeliverySchema,
 } from './schemas';
 
 export type InferredStageStatus = z.infer<typeof StageStatusSchema>;
@@ -202,6 +168,3 @@ export type InferredPipelinePolicies = z.infer<typeof PipelinePoliciesSchema>;
 export type InferredPipelineConfig = z.infer<typeof PipelineConfigSchema>;
 export type InferredStageState = z.infer<typeof StageStateSchema>;
 export type InferredPipelineState = z.infer<typeof PipelineStateSchema>;
-export type InferredOrcaWorkerDonePayload = z.infer<typeof OrcaWorkerDonePayloadSchema>;
-export type InferredOrcaMessage = z.infer<typeof OrcaMessageSchema>;
-export type InferredOrcaDelivery = z.infer<typeof OrcaDeliverySchema>;

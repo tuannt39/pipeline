@@ -4,7 +4,6 @@ export * from './profiles';
 export * from './dag';
 export * from './state';
 export * from './prompts';
-export * from './orca';
 export * from './spawner';
 export * from './controller';
 export * from './cli';

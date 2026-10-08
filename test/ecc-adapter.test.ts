@@ -13,13 +13,13 @@ import { StageDefinition } from '../src/types';
 
 describe('EccKnowledgeAdapter', () => {
   it('initializes without external directory and reports not configured', () => {
-    const adapter = new EccKnowledgeAdapter({ eccPath: undefined });
+    const adapter = new EccKnowledgeAdapter({ eccPath: '' });
     expect(adapter.isExternalConfigured()).toBe(false);
     expect(adapter.getEccPath()).toBeUndefined();
   });
 
   it('provides all 8 core ECC methodologies via built-in fallback', async () => {
-    const adapter = new EccKnowledgeAdapter();
+    const adapter = new EccKnowledgeAdapter({ eccPath: '' });
     const skills = [
       'search-first',
       'iterative-retrieval',
@@ -43,7 +43,7 @@ describe('EccKnowledgeAdapter', () => {
   });
 
   it('resolves multiple skills into a formatted guideline block', async () => {
-    const adapter = new EccKnowledgeAdapter();
+    const adapter = new EccKnowledgeAdapter({ eccPath: '' });
     const resolved = await adapter.resolveStageSkills(['tdd-workflow', 'security-review']);
 
     expect(resolved).toContain('MANDATORY ENGINEERING METHODOLOGIES & GUIDELINES:');

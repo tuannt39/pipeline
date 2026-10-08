@@ -68,12 +68,6 @@ export const PipelinePoliciesSchema = z
 export const PipelineConfigSchema = z
   .object({
     version: z.number().int().positive().default(1),
-    orca: z
-      .object({
-        command: z.string().default('orca'),
-      })
-      .passthrough()
-      .default({ command: 'orca' }),
     workspace: z
       .object({
         default: z.enum(['active', 'new']).default('active'),
@@ -84,7 +78,7 @@ export const PipelineConfigSchema = z
     defaults: z
       .object({
         profile: z.string().default('ecc'),
-        agent: z.string().default('auto'),
+        agent: z.string().default('agy'),
         timeout_ms: z.number().int().positive().default(3600000),
         max_retries: z.number().int().nonnegative().default(2),
         status_interval_ms: z.number().int().positive().default(180000),
@@ -92,7 +86,7 @@ export const PipelineConfigSchema = z
       .passthrough()
       .default({
         profile: 'ecc',
-        agent: 'auto',
+        agent: 'agy',
         timeout_ms: 3600000,
         max_retries: 2,
         status_interval_ms: 180000,
@@ -167,38 +161,6 @@ export const PipelineStateSchema = z
   })
   .passthrough();
 
-export const OrcaWorkerDonePayloadSchema = z
-  .object({
-    task_id: z.string().optional(),
-    dispatch_id: z.string().optional(),
-    outcome: z.enum(['succeeded', 'failed']),
-    files_modified: z.string().optional(),
-    report_path: z.string().optional(),
-    phase: z.string().optional(),
-  })
-  .passthrough();
-
-export const OrcaMessageSchema = z
-  .object({
-    id: z.string(),
-    type: z.string(),
-    from: z.string().optional(),
-    to: z.string().optional(),
-    subject: z.string().optional(),
-    body: z.string().optional(),
-    priority: z.string().optional(),
-    payload: z.union([OrcaWorkerDonePayloadSchema, z.record(z.string(), z.unknown())]).optional(),
-    created_at: z.string().optional(),
-  })
-  .passthrough();
-
-export const OrcaDeliverySchema = z
-  .object({
-    id: z.string().optional(),
-    delivery_id: z.string().optional(),
-    messages: z.array(OrcaMessageSchema),
-  })
-  .passthrough();
 
 export function validatePipelineConfig(data: unknown) {
   return PipelineConfigSchema.parse(data);

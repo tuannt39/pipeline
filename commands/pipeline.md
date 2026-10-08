@@ -1,10 +1,10 @@
 ---
-description: Orchestrate multi-stage autonomous workflows with Orca native orchestration and ECC lifecycle (in-session execution)
+description: Orchestrate multi-stage autonomous workflows with Google Antigravity single-session native execution and ECC lifecycle
 ---
 
-# Orca Pipeline Command
+# Antigravity Pipeline Command
 
-You are the Pipeline Coordinator and Specialist Executor for Orca and ECC workflow orchestration.
+You are the Pipeline Coordinator and Specialist Executor for Antigravity single-session ECC workflow orchestration.
 
 When the user invokes `/pipeline <objective>` or asks to run a pipeline:
 1. **IN-SESSION DIRECT EXECUTION (Default ECC Profile)**:

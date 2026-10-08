@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import { resolveWorkerCommand, ROLE_TO_AGY_SUBAGENT, WorkerSpawner, isProcessAlive } from '../src/spawner';
-import { OrcaClient } from '../src/orca';
+import { resolveWorkerCommand, ROLE_TO_AGY_SUBAGENT, isImplementationStage } from '../src/spawner';
 import { StageDefinition } from '../src/types';
 
-describe('WorkerSpawner & Command Resolution', () => {
+describe('Antigravity Worker Command Resolution & Roles', () => {
   it('resolves Antigravity subagents and flags correctly', () => {
     const archStage: StageDefinition = {
       id: 'architecture',
@@ -37,26 +36,16 @@ describe('WorkerSpawner & Command Resolution', () => {
     }
   });
 
-  it('verifies isProcessAlive works for existing process', () => {
-    expect(isProcessAlive(process.pid)).toBe(true);
-    // Invalid PID that shouldn't exist
-    expect(isProcessAlive(99999999)).toBe(false);
-  });
+  it('correctly identifies implementation stages vs analytical stages', () => {
+    expect(isImplementationStage({ id: 'implement', role: 'coder' })).toBe(true);
+    expect(isImplementationStage({ id: 'fix', role: 'fixer' })).toBe(true);
+    expect(isImplementationStage({ id: 'feature', role: 'developer' })).toBe(true);
+    expect(isImplementationStage({ id: 'custom', role: 'any', mode: 'goal' })).toBe(true);
 
-  it('spawns worker in standalone direct execution mode when Orca is not available', async () => {
-    const mockOrca = new OrcaClient({ isAvailable: false });
-    const spawner = new WorkerSpawner(mockOrca);
-
-    const res = await spawner.spawnWorker({
-      stage: { id: 'requirement', role: 'analyst' },
-      taskId: 'task-test-standalone',
-      runId: 'run-standalone-1',
-    });
-
-    expect(res.method).toBe('standalone-process');
-    expect(res.dispatchId).toContain('disp-standalone-requirement');
-    expect(res.terminalHandle).toBeDefined();
-    expect(res.terminalHandle?.startsWith('pid:')).toBe(true);
+    expect(isImplementationStage({ id: 'plan', role: 'planner' })).toBe(false);
+    expect(isImplementationStage({ id: 'architecture', role: 'architect' })).toBe(false);
+    expect(isImplementationStage({ id: 'security', role: 'security' })).toBe(false);
+    expect(isImplementationStage({ id: 'test', role: 'tester' })).toBe(false);
   });
 
   it('includes taskFile parameter with /plan for analytical stages and /goal for implementer stages', () => {
@@ -69,10 +58,6 @@ describe('WorkerSpawner & Command Resolution', () => {
     const cmdCoder = resolveWorkerCommand(stageCoder, 'agy', '/tmp/task-coder.md');
     expect(cmdCoder).toContain('--mode accept-edits');
     expect(cmdCoder).toContain('-i "/goal Execute task specifications in /tmp/task-coder.md"');
-
-    const stageOmp: StageDefinition = { id: 'plan', role: 'planner', agent: 'omp' };
-    const cmdOmp = resolveWorkerCommand(stageOmp, 'omp', '/tmp/task-plan.md');
-    expect(cmdOmp).toContain('"Execute task specifications in /tmp/task-plan.md"');
   });
 
   it('honors explicit subagent override, model, and custom flags', () => {
@@ -89,23 +74,16 @@ describe('WorkerSpawner & Command Resolution', () => {
     expect(cmd).toBe('agy --agent backend-specialist --model gemini-2.5-pro --mode goal --dangerously-skip-permissions');
   });
 
-  it('resolves omp agent command properly', () => {
-    const stage: StageDefinition = {
-      id: 'implement',
-      role: 'coder',
-      agent: 'omp',
-    };
-    const cmd = resolveWorkerCommand(stage);
-    expect(cmd).toBe('omp');
-
+  it('resolves stage command with custom flags properly on agy', () => {
     const stageWithFlags: StageDefinition = {
       id: 'implement',
       role: 'coder',
-      agent: 'omp',
       flags: ['--worktree', 'my-branch'],
     };
     const cmdFlags = resolveWorkerCommand(stageWithFlags);
-    expect(cmdFlags).toBe('omp --worktree my-branch');
+    expect(cmdFlags).toContain('agy --agent fullstack-developer');
+    expect(cmdFlags).toContain('--worktree my-branch');
+    expect(cmdFlags).toContain('--dangerously-skip-permissions');
   });
 
   it('handles auto agent resolution and ensures skip-permissions on agy', () => {
@@ -115,11 +93,9 @@ describe('WorkerSpawner & Command Resolution', () => {
       agent: 'auto',
     };
 
-    const cmdAgy = resolveWorkerCommand(stage, 'agy');
+    const cmdAgy = resolveWorkerCommand(stage);
     expect(cmdAgy).toContain('agy');
+    expect(cmdAgy).toContain('--agent workflow-orchestrator');
     expect(cmdAgy).toContain('--dangerously-skip-permissions');
-
-    const cmdOmp = resolveWorkerCommand(stage, 'omp');
-    expect(cmdOmp).toBe('omp');
   });
 });

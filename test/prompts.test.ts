@@ -27,8 +27,8 @@ describe('Prompt Compiler', () => {
     expect(prompt).toContain('ROLE:\nYou are the planning agent.');
     expect(prompt).toContain('DO NOT:\n- modify application source code');
     expect(prompt).toContain(path.join(baseCtx.pipelineDir, 'plan.md'));
-    expect(prompt).toContain('orca orchestration send');
-    expect(prompt).toContain('--type worker_done');
+    expect(prompt).toContain('STAGE COMPLETION CONTRACT:');
+    expect(prompt).toContain('Persist all generated artifacts');
   });
 
   it('builds planner prompt with pre-plan inputs requiring comprehensive 360 master plan', () => {
@@ -55,14 +55,14 @@ describe('Prompt Compiler', () => {
     expect(prompt).toContain('software architect specialist');
     expect(prompt).toContain('architecture.md');
     expect(prompt).toContain('DO NOT:\n- modify application source code');
-    expect(prompt).toContain('--type worker_done');
+    expect(prompt).toContain('STAGE COMPLETION CONTRACT:');
   });
 
   it('builds security prompt with security-plan.md contract', () => {
     const prompt = buildSecurityPrompt({ ...baseCtx, stage: { id: 'security', role: 'security' } });
     expect(prompt).toContain('application security specialist');
     expect(prompt).toContain('security-plan.md');
-    expect(prompt).toContain('--type worker_done');
+    expect(prompt).toContain('STAGE COMPLETION CONTRACT:');
   });
 
   it('builds coder prompt requiring implementation.md output', () => {
@@ -75,7 +75,7 @@ describe('Prompt Compiler', () => {
     expect(prompt).toContain('implementation.md');
     expect(prompt).toContain('plan.md');
     expect(prompt).toContain('security-plan.md');
-    expect(prompt).toContain('--type worker_done');
+    expect(prompt).toContain('STAGE COMPLETION CONTRACT:');
   });
 
   it('builds reviewer prompt expecting review.md with VERDICT', () => {
@@ -84,7 +84,7 @@ describe('Prompt Compiler', () => {
     expect(prompt).toContain('DO NOT TRUST blindly');
     expect(prompt).toContain('VERDICT: PASS');
     expect(prompt).toContain('VERDICT: FAIL');
-    expect(prompt).toContain('--type worker_done');
+    expect(prompt).toContain('STAGE COMPLETION CONTRACT:');
   });
 
   it('builds fix prompt referencing reviewer feedback', () => {

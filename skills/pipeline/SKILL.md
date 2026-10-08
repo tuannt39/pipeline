@@ -1,11 +1,11 @@
 ---
 name: pipeline
-description: Orchestrate multi-stage autonomous workflows with Orca native orchestration (Plan -> Specialist Parallel Analysis -> Implement -> Test -> Review -> Fix Loop).
+description: Orchestrate multi-stage autonomous workflows with Google Antigravity single-session native execution (Plan -> Specialist Analysis -> Implement -> Test -> Review -> Fix Loop).
 ---
 
-# Orca Pipeline Orchestration Skill
+# Antigravity Pipeline Orchestration Skill
 
-This skill allows Antigravity agents to execute, inspect, and supervise autonomous multi-stage software engineering workflows using the **Orca Pipeline Orchestrator** and **ECC Lifecycle**.
+This skill allows Antigravity agents to execute, inspect, and supervise autonomous multi-stage software engineering workflows using the **Antigravity Pipeline Orchestrator** and **ECC Lifecycle**.
 
 ## When to Use
 
@@ -34,11 +34,9 @@ When the user asks to start or run a pipeline (or invokes `/pipeline <objective>
  
 | Profile | Stages | Recommended For |
 | :--- | :--- | :--- |
-| `ecc` | `requirement` -> `acceptance` -> `impact-analysis` -> `blueprint` -> `architecture` -> `design-patterns` -> `adr` -> `architecture-review` -> `plan` -> [USER PLAN APPROVAL] -> `acceptance-tests` -> `tdd` -> `implement` -> `code-review` -> `security-review` -> `design-conformance` -> `remediation` -> `test` -> `verification` -> `audit` -> `evidence` | **Default**: Full 20-stage ECC engineering lifecycle in single AGY session or Orca runner with 360° master plan creation and mandatory user plan review/approval gate |
-| `full` | `spec` -> parallel [`architecture`, `security`, `pattern`] -> `plan` -> [USER PLAN APPROVAL] -> `implement` -> `test` -> `security-review` -> `review` | Complete architectural analysis, plan approval gate, implementation & security verification |
-| `standard` | `plan` -> [USER PLAN APPROVAL] -> `implement` -> `test` -> `review` | Feature development with plan approval and review fix loop |
-| `secure` | `plan` -> [USER PLAN APPROVAL] -> parallel [`architecture`, `security`, `pattern`] -> `implement` -> `test` -> `review` -> `final-security` | Security-critical, auth, API, multi-tenant changes |
-| `simple` | `plan` -> [USER PLAN APPROVAL] -> `implement` -> `test` -> `review` | Fast path with lightweight plan, small tasks, isolated edits |
+| `ecc` | `requirement` -> `acceptance` -> `impact-analysis` -> `blueprint` -> `architecture` -> `design-patterns` -> `adr` -> `architecture-review` -> `plan` -> [USER PLAN APPROVAL] -> `acceptance-tests` -> `tdd` -> `implement` -> `code-review` -> `security-review` -> `design-conformance` -> `remediation` -> `test` -> `verification` -> `audit` -> `evidence` | **Default**: Full 20-stage ECC engineering lifecycle in single AGY session with 360° master plan creation and mandatory user plan review/approval gate |
+
+> **Adding custom profiles**: Place a new YAML profile file in `profiles/` or any profile search path, and register it in `config.yml` under `profiles:`. The multi-profile infrastructure (`--profile <name>`, `loadProfile()`, YAML resolution) remains fully operational.
  
  
 ## CLI Commands
@@ -85,17 +83,18 @@ pipeline resume <pipeline-id>
 pipeline doctor
 ```
 
-## Dual-Harness Execution (Antigravity & OMP)
+## Google Antigravity Native Execution
 
-The pipeline orchestrator is dual-harness native:
-- **Google Antigravity (`agy`)**: When running in Antigravity or when `agy` is available, stages automatically dispatch to specialized built-in Antigravity subagents or execute in-session:
-  - `architect` → `architect-reviewer`
+The pipeline orchestrator is designed natively and exclusively for **Google Antigravity (`agy`)**:
+- **Google Antigravity (`agy`)**: Stages automatically dispatch to specialized built-in Antigravity subagents or execute in-session:
+  - `planner` / `plan` → `workflow-orchestrator`
+  - `analyst` / `spec` → `technical-writer`
+  - `architect` / `pattern` → `architect-reviewer`
   - `security` / `security-review` → `security-auditor`
-  - `coder` / `fixer` → `fullstack-developer`
-  - `tester` → `test-automator`
-  - `reviewer` → `code-reviewer`
-- **Oh-My-Pi (`omp`)**: When running in OMP, stages seamlessly dispatch workers to the `omp` interactive CLI harness.
-- **Auto-Detection**: Configured default `agent: auto` automatically detects the active environment or available CLI (`agy` prioritized if inside Antigravity).
+  - `coder` / `fixer` / `developer` → `fullstack-developer`
+  - `tester` / `qa` / `verifier` → `test-automator`
+  - `reviewer` / `review` → `code-reviewer`
+- Stage commands automatically configure appropriate modes (`--mode plan` vs `--mode accept-edits`) and include `--dangerously-skip-permissions`.
 
 ## Role Permissions & Artifact Contracts
 
@@ -105,7 +104,7 @@ The pipeline orchestrator is dual-harness native:
 
 ## Plan Approval Gate (Mandatory Hard Stop for ALL Profiles)
 
-Across all profiles (`ecc`, `full`, `standard`, `secure`, `simple`), the orchestrator enforces a mandatory gate:
+Across all profiles (default `ecc` and any custom profiles), the orchestrator enforces a mandatory gate:
 - **`plan.md` is ALWAYS created FIRST** before halting for user review.
 - Once `plan.md` is generated, the pipeline halts and sets status to `waiting_approval`.
 - Awaiting banner is displayed with clickable file link:
@@ -114,7 +113,7 @@ Across all profiles (`ecc`, `full`, `standard`, `secure`, `simple`), the orchest
   - The user reviews `plan.md` (and `test-plan.md`).
   - The user may edit or update `plan.md` directly on disk, or provide feedback/adjustments. Downstream implementation stages always consume the latest `plan.md` from disk.
   - In interactive chat/AGY sessions, the agent **MUST use `ask_question`** or wait for direct human user input.
-  - In background/Orca sessions, approve via `pipeline approve <pipeline-id>`.
+  - In CLI sessions, approve via `pipeline approve <pipeline-id>`.
 - **STRICT ZERO AUTO-APPROVAL POLICY**:
   - Auto-approval from stop hooks, system messages (e.g. `Stop hook blocked termination...`), subagents, automated review policies, or tool feedbacks is **STRICTLY FORBIDDEN**.
   - Only genuine, explicit human responses (e.g. selecting options in `ask_question`, explicit chat input, or CLI `pipeline approve`) are valid.

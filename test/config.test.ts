@@ -6,61 +6,73 @@ describe('Config and Profiles', () => {
   it('loads default config when no custom file exists', () => {
     const config = loadConfig('/non/existent/path/config.yml');
     expect(config.version).toBe(1);
-    expect(config.orca.command).toBe('orca');
     expect(config.workspace.default).toBe('active');
     expect(config.defaults.profile).toBe('ecc');
-    expect(config.defaults.agent).toBe('auto');
+    expect(config.defaults.agent).toBe('agy');
     expect(config.policies.require_plan_approval).toBe(true);
     expect(config.policies.max_fix_loops).toBe(3);
     expect(config.artifacts.root).toBe('.pipeline');
   });
 
-  it('detects default agent harness based on environment or availability', () => {
+  it('detects default agent harness as pure Antigravity agy', () => {
     const { detectDefaultAgent, hasCommand } = require('../src/config');
     const detected = detectDefaultAgent();
-    expect(['agy', 'omp']).toContain(detected);
+    expect(detected).toBe('agy');
     expect(typeof hasCommand('bun')).toBe('boolean');
     expect(hasCommand('bun')).toBe(true);
     expect(hasCommand('non_existent_binary_xyz123')).toBe(false);
   });
 
-  it('accurately verifies isRealOrcaCli does not treat GNOME screen reader or non-existent binary as orchestrator', () => {
-    const { isRealOrcaCli } = require('../src/config');
-    expect(isRealOrcaCli('non_existent_binary_xyz123')).toBe(false);
-    const orcaResult = isRealOrcaCli('orca');
-    expect(typeof orcaResult).toBe('boolean');
-  });
-
-  it('loads all builtin profiles with auto agent defaults', () => {
+  it('loads builtin ecc profile with agy agent defaults', () => {
     const config = structuredClone(DEFAULT_CONFIG);
-    const profiles = ['simple', 'standard', 'secure', 'full', 'ecc'];
-
-    for (const name of profiles) {
-      const profile = loadProfile(name, config);
-      expect(profile.name).toBe(name);
-      expect(profile.stages.length).toBeGreaterThan(0);
-      for (const stage of profile.stages) {
-        expect(stage.agent).toBe('auto');
-      }
+    const profile = loadProfile('ecc', config);
+    expect(profile.name).toBe('ecc');
+    expect(profile.stages.length).toBe(20);
+    for (const stage of profile.stages) {
+      expect(stage.agent).toBe('agy');
     }
   });
 
-  it('verifies secure profile has 3 parallel specialist stages depending on plan', () => {
+  it('supports loading custom profiles from disk or config, preserving multi-profile extensibility', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-custom-profile-'));
+    try {
+      const customProfilePath = path.join(tempDir, 'custom.yml');
+      const customYaml = `name: custom
+description: Custom engineering workflow
+stages:
+  - id: custom-plan
+    role: planner
+    outputs: [plan.md]
+    next: [custom-exec]
+  - id: custom-exec
+    role: coder
+    inputs: [plan.md]
+    outputs: [result.md]
+    deps: [custom-plan]
+`;
+      fs.writeFileSync(customProfilePath, customYaml, 'utf8');
+
+      const config = structuredClone(DEFAULT_CONFIG);
+      config.profiles['custom'] = customProfilePath;
+
+      const profile = loadProfile('custom', config);
+      expect(profile.name).toBe('custom');
+      expect(profile.stages.length).toBe(2);
+      expect(profile.stages[0].id).toBe('custom-plan');
+      expect(profile.stages[1].id).toBe('custom-exec');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('throws descriptive error when requested profile does not exist', () => {
     const config = structuredClone(DEFAULT_CONFIG);
-    const profile = loadProfile('secure', config);
-
-    const plan = profile.stages.find((s) => s.id === 'plan');
-    expect(plan?.next).toContain('architecture');
-    expect(plan?.next).toContain('security');
-    expect(plan?.next).toContain('pattern');
-
-    const arch = profile.stages.find((s) => s.id === 'architecture');
-    const sec = profile.stages.find((s) => s.id === 'security');
-    const pat = profile.stages.find((s) => s.id === 'pattern');
-
-    expect(arch?.read_only).toBe(true);
-    expect(sec?.read_only).toBe(true);
-    expect(pat?.read_only).toBe(true);
+    expect(() => loadProfile('non-existent-profile', config)).toThrow(
+      /Pipeline profile "non-existent-profile" not found/
+    );
   });
 
   it('initializes configuration with profiles and config.yml', () => {
@@ -92,7 +104,6 @@ describe('Config and Profiles', () => {
 
     const config = loadConfig(tmpFile);
     expect(config.version).toBe(1);
-    expect(config.orca.command).toBe('orca');
     expect(config.defaults.profile).toBe('ecc');
 
     try {
@@ -148,7 +159,7 @@ ecc:
     }
   });
 
-  it('saves default configuration according to agent agy or omp on init or run', () => {
+  it('saves default configuration with pure Antigravity agent on init or run', () => {
     const fs = require('fs');
     const path = require('path');
     const os = require('os');
@@ -157,15 +168,12 @@ ecc:
     expect(normalizeAgent('agy')).toBe('agy');
     expect(normalizeAgent('antigravity')).toBe('agy');
     expect(normalizeAgent('gemini')).toBe('agy');
-    expect(normalizeAgent('omp')).toBe('omp');
-    expect(normalizeAgent('pi')).toBe('omp');
-    expect(normalizeAgent('oh-my-pi')).toBe('omp');
+    expect(normalizeAgent('any-agent')).toBe('agy');
 
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-agent-init-'));
     try {
-      // Local init for agy / antigravity
+      // Local init for agy
       const resAgy = initConfiguration({
-        targetAgent: 'antigravity',
         local: true,
         cwd: tempDir,
         force: true,
@@ -175,73 +183,16 @@ ecc:
       const contentAgy = fs.readFileSync(resAgy.configPath, 'utf8');
       expect(contentAgy).toContain('agent: agy');
 
-      // Local init for omp
-      const tempDirOmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-omp-init-'));
-      try {
-        const resOmp = initConfiguration({
-          targetAgent: 'omp',
-          local: true,
-          cwd: tempDirOmp,
-          force: true,
-        });
-        expect(resOmp.agent).toBe('omp');
-        expect(fs.existsSync(resOmp.configPath)).toBe(true);
-        const contentOmp = fs.readFileSync(resOmp.configPath, 'utf8');
-        expect(contentOmp).toContain('agent: omp');
-
-        // Loading config with agent override
-        const loaded = loadConfig(resOmp.configPath, tempDirOmp, 'agy');
-        expect(loaded.defaults.agent).toBe('agy');
-      } finally {
-        fs.rmSync(tempDirOmp, { recursive: true, force: true });
-      }
+      // Loading config
+      const loaded = loadConfig(resAgy.configPath, tempDir);
+      expect(loaded.defaults.agent).toBe('agy');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
 
-  it('verifies ECC agent, rule, and workflow synchronization across all profiles', () => {
+  it('verifies ECC agent, rule, and workflow synchronization for ecc profile', () => {
     const config = structuredClone(DEFAULT_CONFIG);
-
-    // Simple profile
-    const simple = loadProfile('simple', config);
-    expect(simple.stages.find((s) => s.id === 'plan')?.ecc_agent).toBe('planner');
-    expect(simple.stages.find((s) => s.id === 'implement')?.ecc_rules).toContain('common');
-    expect(simple.stages.find((s) => s.id === 'test')?.ecc_agent).toBe('tdd-guide');
-    expect(simple.stages.find((s) => s.id === 'test')?.ecc_rules).toContain('common');
-    expect(simple.stages.find((s) => s.id === 'review')?.ecc_agent).toBe('code-reviewer');
-    expect(simple.stages.find((s) => s.id === 'review')?.ecc_rules).toContain('common');
-    expect(simple.stages.find((s) => s.id === 'review')?.ecc_workflows).toContain('orch-review');
-
-    // Standard profile
-    const standard = loadProfile('standard', config);
-    expect(standard.stages.find((s) => s.id === 'plan')?.ecc_agent).toBe('planner');
-    expect(standard.stages.find((s) => s.id === 'implement')?.ecc_rules).toContain('common');
-    expect(standard.stages.find((s) => s.id === 'test')?.ecc_agent).toBe('tdd-guide');
-    expect(standard.stages.find((s) => s.id === 'review')?.ecc_agent).toBe('code-reviewer');
-    expect(standard.stages.find((s) => s.id === 'review')?.ecc_workflows).toContain('orch-review');
-
-    // Secure profile
-    const secure = loadProfile('secure', config);
-    expect(secure.stages.find((s) => s.id === 'plan')?.ecc_agent).toBe('planner');
-    expect(secure.stages.find((s) => s.id === 'architecture')?.ecc_agent).toBe('architect');
-    expect(secure.stages.find((s) => s.id === 'security')?.ecc_agent).toBe('security-reviewer');
-    expect(secure.stages.find((s) => s.id === 'pattern')?.ecc_agent).toBe('code-architect');
-    expect(secure.stages.find((s) => s.id === 'review')?.ecc_agent).toBe('code-reviewer');
-    expect(secure.stages.find((s) => s.id === 'final-security')?.ecc_agent).toBe('security-reviewer');
-
-    // Full profile
-    const full = loadProfile('full', config);
-    expect(full.stages.find((s) => s.id === 'spec')?.ecc_agent).toBe('planner');
-    expect(full.stages.find((s) => s.id === 'architecture')?.ecc_agent).toBe('architect');
-    expect(full.stages.find((s) => s.id === 'security')?.ecc_agent).toBe('security-reviewer');
-    expect(full.stages.find((s) => s.id === 'pattern')?.ecc_agent).toBe('code-architect');
-    expect(full.stages.find((s) => s.id === 'plan')?.ecc_agent).toBe('planner');
-    expect(full.stages.find((s) => s.id === 'test')?.ecc_agent).toBe('tdd-guide');
-    expect(full.stages.find((s) => s.id === 'security-2')?.ecc_agent).toBe('security-reviewer');
-    expect(full.stages.find((s) => s.id === 'review')?.ecc_agent).toBe('code-reviewer');
-
-    // ECC profile
     const ecc = loadProfile('ecc', config);
     expect(ecc.stages.find((s) => s.id === 'requirement')?.ecc_agent).toBe('planner');
     expect(ecc.stages.find((s) => s.id === 'impact-analysis')?.ecc_agent).toBe('code-explorer');

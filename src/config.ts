@@ -17,43 +17,12 @@ export function hasCommand(cmd: string): boolean {
   }
 }
 
-export function isRealOrcaCli(cmd: string = 'orca'): boolean {
-  try {
-    if (!hasCommand(cmd)) return false;
-    const output = execSync(`${cmd} orchestration --help`, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      encoding: 'utf8',
-      timeout: 3000,
-    });
-    return (
-      (output.includes('run-create') || output.includes('worker-start') || output.includes('task-create')) &&
-      !output.includes('GNOME/orca') &&
-      !output.includes('screen reader')
-    );
-  } catch {
-    return false;
-  }
+
+export function normalizeAgent(_agent?: string): 'agy' {
+  return 'agy';
 }
 
-export function normalizeAgent(agent?: string): 'agy' | 'omp' {
-  if (!agent) return 'agy';
-  const clean = agent.trim().toLowerCase();
-  if (clean === 'agy' || clean === 'antigravity' || clean === 'gemini') {
-    return 'agy';
-  }
-  if (clean === 'omp' || clean === 'pi' || clean === 'oh-my-pi') {
-    return 'omp';
-  }
-  return clean === 'omp' ? 'omp' : 'agy';
-}
-
-export function detectDefaultAgent(): 'agy' | 'omp' {
-  const envAgent = process.env.PIPELINE_AGENT || process.env.AGENT;
-  if (envAgent) return normalizeAgent(envAgent);
-  if (process.env.ANTIGRAVITY_AGENT === '1') return 'agy';
-  if (process.env.OMP_WORKTREE_DIR) return 'omp';
-  if (hasCommand('agy')) return 'agy';
-  if (hasCommand('omp')) return 'omp';
+export function detectDefaultAgent(): 'agy' {
   return 'agy';
 }
 
@@ -61,16 +30,13 @@ export const PACKAGE_ROOT = path.resolve(__dirname, '..');
 
 export const DEFAULT_CONFIG: PipelineConfig = {
   version: 1,
-  orca: {
-    command: 'orca',
-  },
   workspace: {
     default: 'active',
     create_worktree_only_when_requested: true,
   },
   defaults: {
     profile: 'ecc',
-    agent: 'auto',
+    agent: 'agy',
     timeout_ms: 3600000,
     max_retries: 2,
     status_interval_ms: 180000,
@@ -88,10 +54,6 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     max_pipeline_retries: 1,
   },
   profiles: {
-    simple: 'profiles/simple.yml',
-    standard: 'profiles/standard.yml',
-    secure: 'profiles/secure.yml',
-    full: 'profiles/full.yml',
     ecc: 'profiles/ecc.yml',
   },
   ecc: {
@@ -114,39 +76,16 @@ export function findConfigFile(customPath?: string, cwd: string = process.cwd())
     return fs.existsSync(resolved) ? resolved : null;
   }
 
-  const isAgy = detectDefaultAgent() === 'agy';
-
-  const agyCandidates = [
+  const candidates = [
     path.join(cwd, '.pipeline', 'config.yml'),
     path.join(cwd, '.pipeline', 'config.yaml'),
     path.join(os.homedir(), '.pipeline', 'config.yml'),
     path.join(os.homedir(), '.pipeline', 'config.yaml'),
-    path.join(cwd, '.agents', 'pipeline', 'config.yml'),
     path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml'),
     path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yaml'),
     path.join(os.homedir(), '.gemini', 'pipeline', 'config.yml'),
     path.join(os.homedir(), '.gemini', 'pipeline', 'config.yaml'),
-    path.join(cwd, '.omp', 'pipeline', 'config.yml'),
-    path.join(cwd, '.omp', 'pipeline', 'config.yaml'),
-    path.join(os.homedir(), '.omp', 'pipeline', 'config.yml'),
-    path.join(os.homedir(), '.omp', 'pipeline', 'config.yaml'),
   ];
-
-  const ompCandidates = [
-    path.join(cwd, '.pipeline', 'config.yml'),
-    path.join(cwd, '.pipeline', 'config.yaml'),
-    path.join(os.homedir(), '.pipeline', 'config.yml'),
-    path.join(os.homedir(), '.pipeline', 'config.yaml'),
-    path.join(cwd, '.omp', 'pipeline', 'config.yml'),
-    path.join(cwd, '.omp', 'pipeline', 'config.yaml'),
-    path.join(os.homedir(), '.omp', 'pipeline', 'config.yml'),
-    path.join(os.homedir(), '.omp', 'pipeline', 'config.yaml'),
-    path.join(cwd, '.agents', 'pipeline', 'config.yml'),
-    path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml'),
-    path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yaml'),
-  ];
-
-  const candidates = isAgy ? agyCandidates : ompCandidates;
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
@@ -157,7 +96,6 @@ export function findConfigFile(customPath?: string, cwd: string = process.cwd())
 
 export interface InitConfigOptions {
   targetAgent?: string;
-  targetEnv?: 'gemini' | 'omp';
   force?: boolean;
   linkBin?: boolean;
   local?: boolean;
@@ -169,25 +107,14 @@ export function initConfiguration(options?: InitConfigOptions): {
   configPath: string;
   created: boolean;
   linkedBin?: string;
-  agent: 'agy' | 'omp';
+  agent: 'agy';
 } {
-  let resolvedAgent: 'agy' | 'omp';
-  if (options?.targetAgent) {
-    resolvedAgent = normalizeAgent(options.targetAgent);
-  } else if (options?.targetEnv) {
-    resolvedAgent = options.targetEnv === 'omp' ? 'omp' : 'agy';
-  } else {
-    resolvedAgent = detectDefaultAgent();
-  }
-
-  const isAgy = resolvedAgent === 'agy';
+  const resolvedAgent = 'agy';
   const cwd = options?.cwd || process.cwd();
 
   const baseDir = options?.local
     ? path.join(cwd, '.pipeline')
-    : isAgy
-    ? path.join(os.homedir(), '.gemini', 'config', 'pipeline')
-    : path.join(os.homedir(), '.omp', 'pipeline');
+    : path.join(os.homedir(), '.gemini', 'config', 'pipeline');
 
   const configPath = path.join(baseDir, 'config.yml');
   const profilesDir = path.join(baseDir, 'profiles');
@@ -201,9 +128,6 @@ export function initConfiguration(options?: InitConfigOptions): {
     const eccDir = options?.eccPath || process.env.ECC_DIR || process.env.ECC_PATH || '';
 
     const configYaml = `version: 1
-
-orca:
-  command: orca
 
 workspace:
   default: active
@@ -229,10 +153,6 @@ policies:
   max_pipeline_retries: 1
 
 profiles:
-  simple: ${profilesDir}/simple.yml
-  standard: ${profilesDir}/standard.yml
-  secure: ${profilesDir}/secure.yml
-  full: ${profilesDir}/full.yml
   ecc: ${profilesDir}/ecc.yml
 
 ecc:
@@ -282,10 +202,7 @@ ecc:
 
 export function ensureConfigExists(cwd: string = process.cwd(), requestedAgent?: string): string {
   const targetAgent = requestedAgent ? normalizeAgent(requestedAgent) : detectDefaultAgent();
-  const isAgy = targetAgent === 'agy';
-  const expectedHomeConfig = isAgy
-    ? path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml')
-    : path.join(os.homedir(), '.omp', 'pipeline', 'config.yml');
+  const expectedHomeConfig = path.join(os.homedir(), '.gemini', 'config', 'pipeline', 'config.yml');
 
   if (fs.existsSync(expectedHomeConfig)) {
     return expectedHomeConfig;
@@ -324,10 +241,6 @@ export function loadConfig(
 
     const merged = {
       version: parsed.version ?? DEFAULT_CONFIG.version,
-      orca: {
-        ...DEFAULT_CONFIG.orca,
-        ...(parsed.orca || {}),
-      },
       workspace: {
         ...DEFAULT_CONFIG.workspace,
         ...(parsed.workspace || {}),

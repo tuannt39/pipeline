@@ -1,6 +1,6 @@
 {
   "name": "pipeline",
-  "description": "Thin Pipeline Orchestrator for OMP and Antigravity leveraging Orca Native Orchestration",
+  "description": "Thin Single-Session Pipeline Orchestrator for Google Antigravity with ECC Lifecycle",
   "version": "0.1.0",
   "contextFileName": "GEMINI.md"
 }

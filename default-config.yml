@@ -1,15 +1,12 @@
 version: 1
 
-orca:
-  command: orca
-
 workspace:
   default: active
   create_worktree_only_when_requested: true
 
 defaults:
   profile: ecc
-  agent: auto
+  agent: agy
   timeout_ms: 3600000
   max_retries: 2
 
@@ -26,10 +23,6 @@ policies:
   max_pipeline_retries: 1
 
 profiles:
-  simple: profiles/simple.yml
-  standard: profiles/standard.yml
-  secure: profiles/secure.yml
-  full: profiles/full.yml
   ecc: profiles/ecc.yml
 
 # External Knowledge Adapter for ECC (Optional read-only folder, fallback to built-in if omitted)

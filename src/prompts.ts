@@ -44,32 +44,16 @@ ${found.map(f => `- ${f}`).join('\n')}
 `;
 }
 
-export function buildWorkerCompletionSnippet(taskId: string, dispatchId: string, defaultSubject: string): string {
-  return `
-WHEN FINISHED:
-You MUST notify the orchestrator by running this bash command with your terminal/bash execution tool (do NOT merely print this in your markdown response):
-\`\`\`bash
-orca orchestration send \\
-  --type worker_done \\
-  --subject "${defaultSubject}" \\
-  --body "Completed stage work according to specification" \\
-  --task-id "${taskId}" \\
-  --dispatch-id "${dispatchId}" \\
-  --outcome succeeded \\
-  --json
-\`\`\`
+export function buildWorkerCompletionSnippet(_taskId: string, _dispatchId: string, defaultSubject: string, outputs?: string[]): string {
+  const outputFilesList = outputs && outputs.length > 0
+    ? `\nMandatory output artifacts to persist:\n${outputs.map(f => `- ${f}`).join('\n')}`
+    : '';
 
-If you encountered an unrecoverable failure, report:
-\`\`\`bash
-orca orchestration send \\
-  --type worker_done \\
-  --subject "${defaultSubject} FAILED" \\
-  --body "Explanation of the failure" \\
-  --task-id "${taskId}" \\
-  --dispatch-id "${dispatchId}" \\
-  --outcome failed \\
-  --json
-\`\`\`
+  return `
+STAGE COMPLETION CONTRACT:
+${defaultSubject}
+1. Persist all generated artifacts and findings to the pipeline directory.${outputFilesList}
+2. Ensure all acceptance criteria and quality gates for this stage are satisfied.
 `;
 }
 

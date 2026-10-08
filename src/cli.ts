@@ -1,6 +1,5 @@
-import path from 'path';
 import fs from 'fs';
-import { findConfigFile, hasCommand, isRealOrcaCli, detectDefaultAgent, normalizeAgent, loadConfig, initConfiguration } from './config';
+import { findConfigFile, hasCommand, detectDefaultAgent, normalizeAgent, loadConfig, initConfiguration } from './config';
 import { defaultEccAdapter, configureDefaultEccAdapter } from './ecc-adapter';
 import { loadProfile } from './profiles';
 import { PipelineController } from './controller';
@@ -66,21 +65,13 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
   switch (command) {
     case 'doctor': {
       const activeAgent = detectDefaultAgent();
-      const isRealOrca = isRealOrcaCli(config.orca.command);
       const hasAgy = hasCommand('agy');
-      const hasOmp = hasCommand('omp');
 
-      console.log('Pipeline Orchestrator Doctor:');
+      console.log('Pipeline Orchestrator Doctor (Google Antigravity Native):');
       console.log('------------------------------------------------------------');
-      const orcaStatusLabel = isRealOrca
-        ? '✓ Found (Orca Native Orchestrator)'
-        : hasCommand(config.orca.command)
-        ? '○ GNOME Screen Reader detected (Falling back to Direct Standalone Runner)'
-        : '○ Not installed (Using Direct Standalone Runner)';
-      console.log(`Orca CLI (${config.orca.command}):      ${orcaStatusLabel}`);
       console.log(`Antigravity CLI (agy): ${hasAgy ? '✓ Found' : '○ Not installed'}`);
-      console.log(`Oh-My-Pi CLI (omp):    ${hasOmp ? '✓ Found' : '○ Not installed'}`);
       console.log(`Active Harness Agent:  ${activeAgent.toUpperCase()} (configured default: ${config.defaults.agent})`);
+      console.log(`Execution Mode:        Single-Session In-Session Native`);
       console.log(`Artifacts Root:        ${config.artifacts.root}`);
 
       const eccStatus = defaultEccAdapter.getEccStatusSummary();
@@ -115,8 +106,6 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
           local = true;
         } else if (arg === '--gemini' || arg === '--agy' || arg === '--antigravity') {
           targetAgent = 'agy';
-        } else if (arg === '--omp' || arg === '--pi') {
-          targetAgent = 'omp';
         } else if ((arg === '--agent' || arg === '-a') && i + 1 < argv.length) {
           targetAgent = argv[++i];
         }
@@ -125,7 +114,7 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
       const res = initConfiguration({ targetAgent, force, local, linkBin: true, cwd });
       console.log('Pipeline Initialized:');
       console.log('------------------------------------------------------------');
-      console.log(`Default Agent: ${res.agent.toUpperCase()} (${res.agent === 'agy' ? 'Antigravity' : 'Oh-My-Pi'})`);
+      console.log(`Default Agent: ${res.agent.toUpperCase()} (Antigravity)`);
       console.log(`Config file:   ${res.configPath} (${res.created ? 'created' : 'already exists'})`);
       if (res.linkedBin) {
         console.log(`CLI launcher:  ${res.linkedBin}`);
@@ -223,8 +212,6 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
           agentOverride = argv[++i];
         } else if (arg === '--agy' || arg === '--antigravity') {
           agentOverride = 'agy';
-        } else if (arg === '--omp') {
-          agentOverride = 'omp';
         } else {
           objectiveParts.push(arg);
         }
@@ -476,13 +463,13 @@ export async function runCli(argv: string[] = process.argv.slice(2)): Promise<vo
 
 function printHelp(): void {
   console.log(`
-Pipeline Orchestrator (Antigravity & OMP, powered by Orca native orchestration)
+Pipeline Orchestrator (Google Antigravity Native Single-Session)
 
 USAGE:
-  pipeline init [--agy|--antigravity|--omp|--agent <agent>] [--local] [--force]
+  pipeline init [--agy|--antigravity|--agent <agent>] [--local] [--force]
   pipeline doctor
   pipeline create [--profile <profile>] [--worktree <worktree>] <objective>
-  pipeline start [--profile <profile>] [--agent <agy|omp>] [--worktree <worktree>] <objective>
+  pipeline start [--profile <profile>] [--agent agy] [--worktree <worktree>] <objective>
   pipeline stage <id> <stage-id> <status> [--notes <notes>] [--error <error>]
   pipeline approve [<id>] [--resume]
   pipeline revise <id> <feedback>
@@ -496,9 +483,6 @@ USAGE:
 
 PROFILES:
   ecc        Default: 20-stage ECC engineering lifecycle with 360° master plan & plan approval gate
-  full       Enterprise: spec -> [architect, security, pattern] -> plan -> implement -> test -> review
-  standard   Production: plan -> implement -> test -> review (with review fix loop)
-  secure     Parallel: plan -> [architect, security, pattern] -> implement -> test -> review -> final-security
-  simple     Fast path: plan -> implement -> test -> review
+             Custom profiles can be specified directly via --profile <path/to/profile.yml>
 `);
 }

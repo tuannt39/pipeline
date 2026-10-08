@@ -4,9 +4,6 @@ import {
   PipelineProfileSchema,
   StageDefinitionSchema,
   PipelineStateSchema,
-  OrcaWorkerDonePayloadSchema,
-  OrcaMessageSchema,
-  OrcaDeliverySchema,
   validatePipelineConfig,
   safeValidatePipelineConfig,
   validatePipelineProfile,
@@ -24,7 +21,6 @@ describe('Zod Schemas and Runtime Validation', () => {
     it('validates DEFAULT_CONFIG successfully', () => {
       const parsed = validatePipelineConfig(DEFAULT_CONFIG);
       expect(parsed.version).toBe(1);
-      expect(parsed.orca.command).toBe('orca');
       expect(parsed.workspace.default).toBe('active');
       expect(parsed.policies.max_fix_loops).toBe(3);
     });
@@ -32,7 +28,6 @@ describe('Zod Schemas and Runtime Validation', () => {
     it('populates defaults when given an empty or minimal object', () => {
       const parsed = validatePipelineConfig({});
       expect(parsed.version).toBe(1);
-      expect(parsed.orca.command).toBe('orca');
       expect(parsed.defaults.profile).toBe('ecc');
       expect(parsed.policies.require_plan_approval).toBe(true);
       expect(parsed.policies.max_fix_loops).toBe(3);
@@ -56,7 +51,7 @@ describe('Zod Schemas and Runtime Validation', () => {
   });
 
   describe('PipelineProfileSchema', () => {
-    it('validates all builtin profiles (simple, standard, secure, full)', () => {
+    it('validates builtin profiles (ecc)', () => {
       for (const [name, profile] of Object.entries(BUILTIN_PROFILES)) {
         const res = safeValidatePipelineProfile(profile);
         expect(res.success).toBe(true);
@@ -163,76 +158,6 @@ describe('Zod Schemas and Runtime Validation', () => {
         stages: {},
       });
       expect(invalid.success).toBe(false);
-    });
-  });
-
-  describe('Orca Schemas', () => {
-    it('validates OrcaWorkerDonePayloadSchema', () => {
-      const payload = {
-        task_id: 'task_123',
-        dispatch_id: 'disp_456',
-        outcome: 'succeeded' as const,
-        files_modified: 'src/cli.ts',
-        report_path: '.pipeline/pipe-1/implementation.md',
-      };
-      const res = OrcaWorkerDonePayloadSchema.safeParse(payload);
-      expect(res.success).toBe(true);
-    });
-
-    it('validates OrcaDeliverySchema with messages', () => {
-      const delivery = {
-        delivery_id: 'del_789',
-        messages: [
-          {
-            id: 'msg_001',
-            type: 'worker_done',
-            from: 'worker-1',
-            to: 'orchestrator',
-            subject: 'Done',
-            body: 'Finished successfully',
-            payload: {
-              outcome: 'succeeded',
-            },
-          },
-        ],
-      };
-      const res = OrcaDeliverySchema.safeParse(delivery);
-      expect(res.success).toBe(true);
-      if (res.success) {
-        expect(res.data.messages[0].type).toBe('worker_done');
-      }
-    });
-
-    it('rejects OrcaWorkerDonePayloadSchema with invalid outcome', () => {
-      const payload = {
-        task_id: 'task_123',
-        outcome: 'unknown_outcome',
-      };
-      const res = OrcaWorkerDonePayloadSchema.safeParse(payload);
-      expect(res.success).toBe(false);
-    });
-
-    it('validates OrcaMessageSchema with generic payload dictionary', () => {
-      const message = {
-        id: 'msg_999',
-        type: 'log_event',
-        payload: {
-          key1: 'val1',
-          key2: 123,
-          nested: { active: true },
-        },
-      };
-      const res = OrcaMessageSchema.safeParse(message);
-      expect(res.success).toBe(true);
-      if (res.success) {
-        expect(res.data.id).toBe('msg_999');
-        expect(res.data.type).toBe('log_event');
-      }
-    });
-
-    it('rejects OrcaMessageSchema missing id or type', () => {
-      expect(OrcaMessageSchema.safeParse({ id: 'msg_1' }).success).toBe(false);
-      expect(OrcaMessageSchema.safeParse({ type: 'worker_done' }).success).toBe(false);
     });
   });
 
