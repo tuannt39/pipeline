@@ -1,0 +1,56 @@
+name: investigate
+description: Read-only investigative diagnostic profile for analyzing logs, bugs, and system discrepancies
+
+stages:
+  - id: log-analysis
+    role: analyst
+    ecc_agent: code-explorer
+    read_only: true
+    ecc_skills:
+      - search-first
+      - iterative-retrieval
+    outputs:
+      - log-analysis.md
+    next:
+      - root-cause
+
+  - id: root-cause
+    role: analyst
+    ecc_agent: architect
+    read_only: true
+    ecc_skills:
+      - search-first
+    inputs:
+      - log-analysis.md
+    outputs:
+      - root-cause.md
+    deps:
+      - log-analysis
+    next:
+      - impact-scope
+
+  - id: impact-scope
+    role: analyst
+    ecc_agent: code-explorer
+    read_only: true
+    inputs:
+      - root-cause.md
+    outputs:
+      - impact-scope.md
+    deps:
+      - root-cause
+    next:
+      - remediation-plan
+
+  - id: remediation-plan
+    role: planner
+    ecc_agent: planner
+    read_only: true
+    inputs:
+      - log-analysis.md
+      - root-cause.md
+      - impact-scope.md
+    outputs:
+      - recommendation.md
+    deps:
+      - impact-scope

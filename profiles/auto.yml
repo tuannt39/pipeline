@@ -1,0 +1,103 @@
+name: auto
+description: Dynamic auto-triage profile that automatically classifies objectives into patch, investigate, or ecc based on complexity
+
+stages:
+  - id: triage
+    role: analyst
+    ecc_agent: code-explorer
+    read_only: true
+    ecc_skills:
+      - search-first
+      - iterative-retrieval
+    outputs:
+      - triage.md
+      - root-cause-analysis.md
+    next:
+      - plan
+
+  - id: plan
+    role: planner
+    ecc_agent: planner
+    read_only: true
+    require_approval: true
+    ecc_skills:
+      - search-first
+    inputs:
+      - triage.md
+      - root-cause-analysis.md
+    outputs:
+      - plan.md
+      - test-plan.md
+    deps:
+      - triage
+    next:
+      - implement
+
+  - id: implement
+    role: coder
+    ecc_skills:
+      - coding-standards
+    ecc_rules:
+      - common
+    inputs:
+      - plan.md
+      - triage.md
+    outputs:
+      - implementation.md
+    deps:
+      - plan
+    next:
+      - verify
+
+  - id: verify
+    role: tester
+    ecc_agent: tdd-guide
+    ecc_skills:
+      - verification-loop
+    ecc_rules:
+      - common
+    inputs:
+      - plan.md
+      - implementation.md
+    outputs:
+      - test.md
+    deps:
+      - implement
+    next:
+      - review
+
+  - id: review
+    role: reviewer
+    ecc_agent: code-reviewer
+    read_only: true
+    ecc_skills:
+      - coding-standards
+    ecc_rules:
+      - common
+    inputs:
+      - plan.md
+      - implementation.md
+      - test.md
+    outputs:
+      - review.md
+    deps:
+      - verify
+    next:
+      - evidence
+
+  - id: evidence
+    role: reviewer
+    ecc_agent: code-reviewer
+    read_only: true
+    ecc_skills:
+      - verification-loop
+    ecc_rules:
+      - common
+    inputs:
+      - review.md
+      - test.md
+    outputs:
+      - evidence.json
+      - result.md
+    deps:
+      - review

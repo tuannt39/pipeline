@@ -34,7 +34,10 @@ When the user asks to start or run a pipeline (or invokes `/pipeline <objective>
  
 | Profile | Stages | Recommended For |
 | :--- | :--- | :--- |
-| `ecc` | `requirement` -> `acceptance` -> `impact-analysis` -> `blueprint` -> `architecture` -> `design-patterns` -> `adr` -> `architecture-review` -> `plan` -> [USER PLAN APPROVAL] -> `acceptance-tests` -> `tdd` -> `implement` -> `code-review` -> `security-review` -> `design-conformance` -> `remediation` -> `test` -> `verification` -> `audit` -> `evidence` | **Default**: Full 20-stage ECC engineering lifecycle in single AGY session with 360° master plan creation and mandatory user plan review/approval gate |
+| `auto` | Auto-Triage -> (`patch` \| `investigate` \| `ecc`) | **Default & Smart Routing**: Tự động phân tích mục tiêu & độ phức tạp để chọn profile tối ưu nhất. Người dùng không cần chọn thủ công! |
+| `patch` | `rca` -> `plan` -> [USER PLAN APPROVAL] -> `implement` -> `verify` -> `review` -> `evidence` | **Surgical Bugfix & Logic Patch**: 6 stages cho sửa lỗi logic/chuỗi cụ thể (như `resolvePaQlnCouncilMemberSearchTerm`), triệt tiêu xử lý thừa |
+| `investigate` | `log-analysis` -> `root-cause` -> `impact-scope` -> `remediation-plan` | **Diagnostic & Log Investigation**: 4 read-only stages cho điều tra log và chẩn đoán nguyên nhân mà không sửa code |
+| `ecc` | Full 20 stages ECC Lifecycle | **Enterprise Feature & Architecture**: Dành cho tính năng lớn, đa module hoặc refactor kiến trúc rộng |
 
 > **Adding custom profiles**: Place a new YAML profile file in `profiles/` or any profile search path, and register it in `config.yml` under `profiles:`. The multi-profile infrastructure (`--profile <name>`, `loadProfile()`, YAML resolution) remains fully operational.
  
@@ -141,3 +144,42 @@ When executing the `ecc` profile (`/pipeline --profile ecc <objective>` or defau
 4. **Post-Approval Execution & Verification Loop (Stages 10–20)**:
    - Upon user approval, the pipeline continues through `acceptance-tests`, `tdd`, `implement`, `code-review`, `security-review`, `design-conformance`, `remediation`, `test`, `verification`, `audit`, and `evidence`.
    - Final state is marked `RELEASE READY` only when all evidence domains in `evidence.json` pass.
+
+## Patch Profile: Surgical Bugfix & Logic Patch Workflow
+
+When executing `/pipeline --profile patch <objective>` (recommended for bug fixes, data/logic discrepancies, localized fixes like `resolvePaQlnCouncilMemberSearchTerm`):
+1. **Root Cause Analysis (Stage 1: `rca`)**:
+   - Focus strictly on separating **Symptom** (observed error/log) from **Root Cause** (underlying logic flaw or data conflict).
+   - Determine the **Minimal Surgical Scope**: Identify only the lines and files that truly need modification.
+   - Persist `root-cause-analysis.md` and `impact.md`.
+2. **Surgical Plan & Approval Gate (Stage 2: `plan`)**:
+   - Create concise `plan.md` and `test-plan.md` focusing on minimal, direct changes.
+   - Explicitly include a **Simplicity & Anti-Over-Engineering Audit**: Confirm NO unrequested configuration properties (e.g. Spring `@Value`), speculative fallback mechanisms, or dynamic strategies are introduced.
+   - **MANDATORY GATE**: Halt at `waiting_approval` and prompt user confirmation.
+3. **Implementation & Verification (Stages 3–6)**:
+   - `implement` → Make surgical changes, writing `implementation.md`.
+   - `verify` → Execute **Targeted Tests** only (e.g. `-Dtest=<TargetClassTest>`), writing `test.md`.
+   - `review` → Independent review for code quality and simplicity audit. Flag `VERDICT: FAIL` if speculative code or over-engineering is detected.
+   - `evidence` → Persist `evidence.json` and mark `RELEASE READY`.
+
+## Investigate Profile: Diagnostic & Log Analysis Workflow
+
+When executing `/pipeline --profile investigate <objective>` (recommended for log triage and problem investigation without editing code):
+1. `log-analysis` → Extract and analyze error logs, stack traces, and failure patterns (`log-analysis.md`).
+2. `root-cause` → Map logs back to codebase, identify architectural or data inconsistencies (`root-cause.md`).
+3. `impact-scope` → Assess upstream/downstream callers and components impacted (`impact-scope.md`).
+4. `remediation-plan` → Formulate recommended fix strategies (minimal surgical fix vs comprehensive overhaul) without modifying code (`recommendation.md`).
+
+## Simplicity & Anti-Over-Engineering Guardrails (All Profiles)
+
+To prevent over-engineering traps:
+- **Zero Unrequested Configurability**: Under NO circumstances should specialists introduce configuration properties, custom formatters, dynamic strategies, or fallback wrappers unless explicitly requested by the user.
+- **Surgical Changes**: Every changed line must trace directly to the objective. No adjacent code refactoring or speculative enhancements.
+- **Reviewer Rejection**: If `code-review` or `design-conformance` detects unrequested flexibility or over-engineering, it MUST report `VERDICT: FAIL` and require removal.
+
+## Log Triage & Targeted Testing Protocol
+
+- **Targeted Test Execution**: Run ONLY the test classes or files directly affected (e.g., `./mvnw test -Dtest=...` or `bun test <file>`). NEVER run entire test suites across multiple stages for single-file changes.
+- **Concise Log Extraction**: Extract only the exception type, error message, and first relevant application stack trace frame. Do not spam thousands of lines of build logs into state or context.
+- **Command Budget**: Avoid trial-and-error loops (100+ commands). Analyze root causes before running commands.
+

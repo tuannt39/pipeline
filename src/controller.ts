@@ -15,6 +15,7 @@ import {
   readArtifact,
 } from './state';
 import { loadProfile } from './profiles';
+import { classifyObjective } from './triage';
 import { buildPromptForStage } from './prompts';
 import { EccKnowledgeAdapter, configureDefaultEccAdapter } from './ecc-adapter';
 
@@ -48,7 +49,16 @@ export class PipelineController {
     worktree?: string;
   }): Promise<{ id: string; dir: string; state: PipelineState; profile: PipelineProfile }> {
     const id = options.id || generatePipelineId();
-    const profileName = options.profileName || this.config.defaults.profile;
+    let profileName = options.profileName || this.config.defaults.profile;
+    let triageNotes = '';
+
+    if (profileName === 'auto') {
+      const triage = classifyObjective(options.objective);
+      profileName = triage.profile;
+      triageNotes = `[Auto-Triage] Automatically routed to "${triage.profile}" profile (${triage.confidence} confidence): ${triage.rationale}`;
+      console.log(`[pipeline-controller] ${triageNotes}`);
+    }
+
     const profile = loadProfile(profileName, this.config, this.cwd);
 
     validateDAG(profile);
@@ -58,6 +68,12 @@ export class PipelineController {
 
     const worktreeMode = options.worktree || this.config.workspace.default;
     const state = initPipelineState(id, options.objective, profile, this.cwd, worktreeMode);
+    if (triageNotes && profile.stages.length > 0) {
+      const firstStageId = profile.stages[0].id;
+      if (state.stages[firstStageId]) {
+        state.stages[firstStageId].notes = triageNotes;
+      }
+    }
 
     saveState(pipelineDir, state);
 
@@ -65,7 +81,7 @@ export class PipelineController {
     writeArtifact(
       pipelineDir,
       'request.md',
-      `# Pipeline Request: ${id}\n\n**Objective**: ${options.objective}\n**Profile**: ${profile.name}\n**Workspace**: ${this.cwd} (${worktreeMode})\n**Created**: ${state.createdAt}\n`
+      `# Pipeline Request: ${id}\n\n**Objective**: ${options.objective}\n**Profile**: ${profile.name}${triageNotes ? `\n**Triage**: ${triageNotes}` : ''}\n**Workspace**: ${this.cwd} (${worktreeMode})\n**Created**: ${state.createdAt}\n`
     );
 
     return { id, dir: pipelineDir, state, profile };

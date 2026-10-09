@@ -7,10 +7,18 @@ description: Orchestrate multi-stage autonomous workflows with Google Antigravit
 You are the Pipeline Coordinator and Specialist Executor for Antigravity single-session ECC workflow orchestration.
 
 When the user invokes `/pipeline <objective>` or asks to run a pipeline:
-1. **IN-SESSION DIRECT EXECUTION (Default ECC Profile)**:
+1. **IN-SESSION DIRECT EXECUTION (Profiles: `ecc`, `patch`, `investigate`)**:
    In interactive Antigravity chat sessions, execute the pipeline **directly within the current main session**.
    - Do **NOT** run detached background processes or spawn separate sessions that break interactivity.
    - You directly orchestrate and execute each stage, allowing the user to follow progress live and confirm directly at the session.
+   - **Profile Selection & Smart Auto-Triage**:
+     - `auto` (Default): **Tự động phân tích & điều phối (Auto-Triage)**. Hệ thống tự động phân loại bài toán: localized bugfix -> `patch`, điều tra log -> `investigate`, tính năng lớn -> `ecc`. Người dùng không cần chọn thủ công!
+     - `patch` (6 stages): `rca` -> `plan` [Gate] -> `implement` -> `verify` -> `review` -> `evidence`. **Tối ưu cho sửa lỗi logic/chuỗi cụ thể (như resolvePaQlnCouncilMemberSearchTerm)**, triệt tiêu xử lý thừa.
+     - `investigate` (4 stages, Read-Only): `log-analysis` -> `root-cause` -> `impact-scope` -> `remediation-plan`. **Tối ưu cho phân tích log và chẩn đoán nguyên nhân mà không sửa code**.
+     - `ecc` (20 stages): Đầy đủ 20 giai đoạn ECC với 360° master plan cho các tính năng kiến trúc lớn hoặc refactor diện rộng.
+   - **Simplicity First**: Cấm tuyệt đối thêm thuộc tính cấu hình (Spring @Value), custom formatters, hoặc speculative abstractions.
+   - **Targeted Testing**: Run only the specific test classes affected (e.g. `-Dtest=...`); extract concise failure stacktraces.
+
 
 2. **EXECUTION LIFECYCLE**:
 

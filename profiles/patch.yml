@@ -1,0 +1,103 @@
+name: patch
+description: Lightweight surgical bugfix and logic patch lifecycle (RCA -> Plan -> Implement -> Verify -> Review -> Evidence)
+
+stages:
+  - id: rca
+    role: analyst
+    ecc_agent: code-explorer
+    read_only: true
+    ecc_skills:
+      - search-first
+      - iterative-retrieval
+    outputs:
+      - root-cause-analysis.md
+      - impact.md
+    next:
+      - plan
+
+  - id: plan
+    role: planner
+    ecc_agent: planner
+    read_only: true
+    require_approval: true
+    ecc_skills:
+      - search-first
+    inputs:
+      - root-cause-analysis.md
+      - impact.md
+    outputs:
+      - plan.md
+      - test-plan.md
+    deps:
+      - rca
+    next:
+      - implement
+
+  - id: implement
+    role: coder
+    ecc_skills:
+      - coding-standards
+    ecc_rules:
+      - common
+    inputs:
+      - plan.md
+      - root-cause-analysis.md
+    outputs:
+      - implementation.md
+    deps:
+      - plan
+    next:
+      - verify
+
+  - id: verify
+    role: tester
+    ecc_agent: tdd-guide
+    ecc_skills:
+      - verification-loop
+    ecc_rules:
+      - common
+    inputs:
+      - plan.md
+      - implementation.md
+    outputs:
+      - test.md
+    deps:
+      - implement
+    next:
+      - review
+
+  - id: review
+    role: reviewer
+    ecc_agent: code-reviewer
+    read_only: true
+    ecc_skills:
+      - coding-standards
+    ecc_rules:
+      - common
+    inputs:
+      - plan.md
+      - implementation.md
+      - test.md
+    outputs:
+      - review.md
+    deps:
+      - verify
+    next:
+      - evidence
+
+  - id: evidence
+    role: reviewer
+    ecc_agent: code-reviewer
+    read_only: true
+    ecc_skills:
+      - verification-loop
+    ecc_rules:
+      - common
+    inputs:
+      - review.md
+      - test.md
+    outputs:
+      - evidence.json
+      - result.md
+    deps:
+      - review

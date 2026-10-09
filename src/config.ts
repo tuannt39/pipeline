@@ -54,7 +54,10 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     max_pipeline_retries: 1,
   },
   profiles: {
+    auto: 'profiles/auto.yml',
     ecc: 'profiles/ecc.yml',
+    patch: 'profiles/patch.yml',
+    investigate: 'profiles/investigate.yml',
   },
   ecc: {
     path: process.env.ECC_DIR || process.env.ECC_PATH || '',

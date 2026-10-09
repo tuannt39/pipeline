@@ -73,9 +73,13 @@ The pipeline orchestrator runs natively and interactively in-session within Goog
 
 | Profile | Flow | Use Case |
 |---|---|---|
-| `ecc` | `REQUIREMENT` → `ACCEPTANCE` → `IMPACT` → `BLUEPRINT` → `ARCH` → `PATTERNS` → `ADR` → `ARCH-REVIEW` → `PLAN` → [GATE] → `ACC-TESTS` → `TDD` → `IMPLEMENT` → `CODE-REVIEW` → `SEC-REVIEW` → `DESIGN-CONFORMANCE` → `REMEDIATION` → `TEST` → `VERIFICATION` → `AUDIT` → `EVIDENCE` | **Default**: Comprehensive 20-stage ECC engineering lifecycle with 360° master plan creation and mandatory user plan review/approval gate |
+| `auto` | Auto-Triage → (`patch` \| `investigate` \| `ecc`) | **Default & Smart Routing**: Tự động phân tích mục tiêu & độ phức tạp để chọn profile tối ưu nhất. Người dùng không cần chọn thủ công! |
+| `patch` | `RCA` → `PLAN` → [GATE] → `IMPLEMENT` → `VERIFY` → `REVIEW` → `EVIDENCE` | **Surgical Bugfix & Logic Patch**: 6 stages cho sửa lỗi logic/chuỗi cụ thể (như `resolvePaQlnCouncilMemberSearchTerm`), triệt tiêu xử lý thừa |
+| `investigate` | `LOG-ANALYSIS` → `ROOT-CAUSE` → `IMPACT-SCOPE` → `REMEDIATION-PLAN` | **Diagnostic & Log Investigation**: 4 read-only stages cho điều tra log và chẩn đoán nguyên nhân mà không sửa code |
+| `ecc` | Full 20 stages ECC Lifecycle | **Enterprise Feature & Architecture**: Dành cho tính năng lớn, đa module hoặc refactor kiến trúc rộng |
 
 *Note: Custom profiles can be passed directly via `--profile <path-to-yaml>`.*
+
 
 ---
 

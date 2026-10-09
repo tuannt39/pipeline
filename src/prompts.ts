@@ -57,6 +57,78 @@ ${defaultSubject}
 `;
 }
 
+export const SIMPLICITY_DIRECTIVE = `
+SIMPLICITY & ANTI-OVER-ENGINEERING DIRECTIVE (Rule 2 & Rule 3):
+1. MINIMUM CODE THAT SOLVES THE PROBLEM (Rule 2):
+   - Do NOT add configuration properties (e.g. Spring @Value, custom formatters, dynamic strategies) unless explicitly requested.
+   - Do NOT add abstraction layers, helper classes, or speculative fallback logic for single-use code.
+   - If a simple string format or constant solves the problem, use it directly. Never invent speculative configurability.
+2. SURGICAL CHANGES (Rule 3):
+   - Touch only what you must. Every changed line must trace directly to the objective.
+   - Clean up only your own changes. Do not refactor unrelated code.
+3. OVER-ENGINEERING (XỬ LÝ THỪA) DETECTION CHECKLIST:
+   - [ ] YAGNI Violation: Did you add ANY unrequested configuration property, format flag, or fallback mechanism? -> If YES, REMOVE IT.
+   - [ ] Blast Radius: Is the change larger than the problem (e.g. 50 lines for a 1-line string fix)? -> If YES, REDUCE TO MINIMAL FIX.
+   - [ ] Defensive Overkill: Did you add try-catch fallback for a setting you invented? -> If YES, REMOVE SETTING AND FALLBACK.
+   - [ ] Single-Use Abstraction: Did you introduce an interface or strategy used only once? -> If YES, INLINE IT.
+`.trim();
+
+export const LOG_TRIAGE_DIRECTIVE = `
+LOG TRIAGE & TARGETED VERIFICATION PROTOCOL:
+1. TARGETED TESTING ONLY:
+   - Run ONLY the specific test class or test file affected by changes (e.g. ./mvnw test -Dtest=<TargetClassTest> or bun test <file>).
+   - NEVER repeatedly run the entire test suite or full project builds across multiple stages when only a localized file was changed.
+2. CONCISE LOG EXTRACTION:
+   - When inspecting test or build output, extract ONLY:
+     a) The specific Exception name and message.
+     b) The primary failure line / stack trace frame in application code.
+   - Do NOT spam full build logs or terminal output into state or artifacts.
+3. COMMAND BUDGET:
+   - Avoid guessing and repetitive command loops. Analyze root causes before running commands.
+`.trim();
+
+export function buildAnalystPrompt(ctx: PromptContext): string {
+  const outputs = ctx.stage.outputs && ctx.stage.outputs.length > 0
+    ? ctx.stage.outputs
+    : ['analysis.md'];
+  const outputFilesList = outputs.map((f) => `- ${path.join(ctx.pipelineDir, f)}`).join('\n');
+  const inputList = ctx.inputs && ctx.inputs.length > 0
+    ? `\nMANDATORY INPUTS (READ FIRST):\n${ctx.inputs.map((f) => `- ${path.join(ctx.pipelineDir, f)}`).join('\n')}\n`
+    : '';
+  const projectContext = buildProjectContextSnippet(ctx.workspace);
+
+  return `
+ROLE:
+Analytical specialist agent (${ctx.stage.id}).
+
+PIPELINE: ${ctx.pipelineId}
+OBJECTIVE: ${ctx.objective}
+WORKSPACE: ${ctx.workspace}
+${projectContext}${inputList}
+DO NOT:
+- modify application source code
+- commit changes
+- create git worktree
+
+MANDATORY OUTPUT ARTIFACTS TO PRODUCE:
+${outputFilesList}
+
+ANALYSIS PROTOCOL:
+1. PROBLEM & LOG INVESTIGATION:
+   - Identify observed symptoms, error logs, and failure traces.
+   - Distinguish symptom (e.g. exception message) from root cause (e.g. dynamic vs static data conflict).
+2. MINIMAL SURGICAL SCOPE:
+   - Identify the exact minimal files and lines that require change.
+   - Propose the cleanest, direct solution.
+3. ANTI-OVER-ENGINEERING (Simplicity First):
+   - Reject unrequested configurability, speculative properties, and extraneous abstraction layers.
+
+${SIMPLICITY_DIRECTIVE}
+
+${buildWorkerCompletionSnippet(ctx.taskId, ctx.dispatchId, `Analysis complete for ${ctx.stage.id} in ${ctx.pipelineId}`, outputs)}
+`.trim();
+}
+
 export function buildPlannerPrompt(ctx: PromptContext): string {
   const planFile = path.join(ctx.pipelineDir, 'plan.md');
   const hasPrePlanInputs = ctx.inputs && ctx.inputs.length > 0;
@@ -175,7 +247,11 @@ Before reporting completion, verify your plan addresses:
 - [ ] Specific file paths (not vague references)
 - [ ] Concrete test strategy with verifiable commands
 - [ ] Clear acceptance criteria
+- [ ] Simplicity Audit: No unrequested properties, fallback logic, or speculative abstractions
 If any check fails, revise plan.md before reporting done.
+
+${SIMPLICITY_DIRECTIVE}
+
 ${buildWorkerCompletionSnippet(ctx.taskId, ctx.dispatchId, `Plan complete for ${ctx.pipelineId}`)}
 `.trim();
 }
@@ -209,6 +285,10 @@ architecture.md MUST CONTAIN:
 2. Data flow & state management design
 3. Interface boundaries, API signatures, and contracts
 4. Scalability, modularity, and future evolution considerations
+5. Simplicity & YAGNI Justification: Explain why the proposed design is the minimum necessary architecture. Explicitly reject unrequested configurability or speculative abstractions.
+
+${SIMPLICITY_DIRECTIVE}
+
 ${buildWorkerCompletionSnippet(ctx.taskId, ctx.dispatchId, `Architecture design complete for ${ctx.pipelineId}`)}
 `.trim();
 }
@@ -275,6 +355,10 @@ pattern.md MUST CONTAIN:
 2. Code reuse, abstractions, and clean code guidelines
 3. Anti-patterns to strictly avoid
 4. Naming conventions and file organization guidelines
+5. Anti-Over-Engineering Guard: Reject unrequested flexibility, dynamic strategies, or speculative properties. Keep implementations direct and simple.
+
+${SIMPLICITY_DIRECTIVE}
+
 ${buildWorkerCompletionSnippet(ctx.taskId, ctx.dispatchId, `Design pattern guidelines complete for ${ctx.pipelineId}`)}
 `.trim();
 }
@@ -304,6 +388,12 @@ RULES:
 - Implement clean, production-ready code with appropriate comments
 - Run relevant tests and verify your changes build
 - Do not modify pipeline state manually
+- Strict Simplicity: Write the absolute minimum code to satisfy the plan. Never add unrequested properties, configs, or fallback strategies.
+- Targeted Testing: Verify using targeted test commands only.
+
+${SIMPLICITY_DIRECTIVE}
+
+${LOG_TRIAGE_DIRECTIVE}
 
 MUST PRODUCE:
 ${outputFile}
@@ -336,9 +426,11 @@ ${inputList}
 
 RULES:
 - Inspect the modified codebase
-- Run the full relevant test suite
+- Run the full relevant test suite using targeted test commands
 - Add automated unit or integration tests if coverage is missing
 - Check edge cases and error handling
+
+${LOG_TRIAGE_DIRECTIVE}
 
 MUST PRODUCE:
 ${outputFile}
@@ -380,9 +472,14 @@ VERIFY IN CODEBASE:
 3. Architectural consistency and code quality
 4. Security implications (secrets, validation, sanitization)
 5. Test coverage and edge cases
+6. Simplicity & Over-Engineering: Verify that no unrequested properties, fallback logic, or speculative abstractions were added. If over-engineering is detected, report VERDICT: FAIL and demand removal.
+
+${SIMPLICITY_DIRECTIVE}
+
+${LOG_TRIAGE_DIRECTIVE}
 
 RUN:
-- Build and test commands to verify independently
+- Build and test commands to verify independently (use targeted test commands)
 
 MUST PRODUCE:
 ${outputFile}
@@ -390,7 +487,8 @@ ${outputFile}
 review.md MUST CONTAIN:
 1. Summary of findings
 2. Detailed code review comments (file by file)
-3. Verdict on a single line at the very end:
+3. Simplicity & Over-Engineering Audit (confirm zero unrequested complexity)
+4. Verdict on a single line at the very end:
    VERDICT: PASS
    or
    VERDICT: FAIL (with required fixes listed)
@@ -422,8 +520,13 @@ Carefully study reviewer comments in: ${reviewFile}
 RULES:
 - Address all failed items in review.md
 - Make surgical code fixes
-- Run tests to ensure regressions are resolved
+- Strictly adhere to Simplicity First: Remove any unrequested complexity or over-engineering flagged by review
+- Run targeted tests to ensure regressions are resolved
 - Update ${outputFile} with fix details
+
+${SIMPLICITY_DIRECTIVE}
+
+${LOG_TRIAGE_DIRECTIVE}
 
 MUST UPDATE:
 ${outputFile}
@@ -434,6 +537,11 @@ ${buildWorkerCompletionSnippet(ctx.taskId, ctx.dispatchId, `Fix iteration ${ctx.
 export function buildPromptForStage(ctx: PromptContext): string {
   let prompt = '';
   switch (ctx.stage.role) {
+    case 'analyst':
+    case 'spec':
+    case 'spec-writer':
+      prompt = buildAnalystPrompt(ctx);
+      break;
     case 'planner':
       prompt = buildPlannerPrompt(ctx);
       break;
@@ -461,8 +569,10 @@ export function buildPromptForStage(ctx: PromptContext): string {
       prompt = buildFixPrompt(ctx);
       break;
     default:
-      if (ctx.stage.mode === 'analysis' || ctx.stage.read_only) {
-        prompt = buildPlannerPrompt(ctx);
+      if (ctx.stage.mode === 'analysis') {
+        prompt = buildAnalystPrompt(ctx);
+      } else if (ctx.stage.read_only) {
+        prompt = ctx.stage.outputs?.includes('plan.md') ? buildPlannerPrompt(ctx) : buildAnalystPrompt(ctx);
       } else {
         prompt = buildCoderPrompt(ctx);
       }
