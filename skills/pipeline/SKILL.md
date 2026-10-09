@@ -18,14 +18,14 @@ Activate this skill when:
 ## Instructions for the Agent
 
 When the user asks to start or run a pipeline (or invokes `/pipeline <objective>`):
-1. **IN-SESSION DIRECT EXECUTION (Default `ecc` Profile)**:
+1. **IN-SESSION DIRECT EXECUTION (Default `auto` Profile)**:
    - When running in an interactive Antigravity chat session, the agent executes the pipeline **directly within the current session**.
    - Do **NOT** run detached background processes or spawn separate sessions that break interactivity.
    - Initialize pipeline tracking in `.pipeline/<pipeline-id>/` (via `pipeline create` or direct state creation).
-   - Inform the user of the Pipeline ID, profile being used (defaults to `ecc`), and that stages are running live in the main session.
-   - Stages 1–8 execute sequentially to generate design and architecture artifacts.
-   - Stage 9 (`plan`) synthesizes the 360° Master Engineering Plan.
-   - **Halt at Mandatory Plan Approval Gate**: Call `ask_question` to request user review and approval before advancing to implementation (Stages 10–20).
+   - Inform the user of the Pipeline ID, profile being used (defaults to `auto` with smart triage into `patch`, `investigate`, or `ecc`), and that stages are running live in the main session.
+   - For `ecc` profile: Stages 1–8 execute sequentially to generate design and architecture artifacts, and Stage 9 (`plan`) synthesizes the 360° Master Engineering Plan.
+   - For `patch` profile: Stage 1 (`rca`) investigates root cause, and Stage 2 (`plan`) synthesizes the surgical plan.
+   - **Halt at Mandatory Plan Approval Gate**: Call `ask_question` to request user review and approval before advancing to implementation.
 
 2. **BACKGROUND CLI RUNNER (External / Headless Mode)**:
    - When invoked from an external terminal or headless automation, `pipeline start [--profile <profile>] "<objective>"` launches the background runner loop.

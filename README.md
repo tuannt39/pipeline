@@ -95,7 +95,7 @@ workspace:
   create_worktree_only_when_requested: true
 
 defaults:
-  profile: ecc
+  profile: auto
   agent: agy
   timeout_ms: 3600000
   max_retries: 2
@@ -113,7 +113,10 @@ policies:
   max_pipeline_retries: 1
 
 profiles:
+  auto: profiles/auto.yml
   ecc: profiles/ecc.yml
+  patch: profiles/patch.yml
+  investigate: profiles/investigate.yml
 
 ecc:
   path: "" # Optional path to clone of ECC (e.g. /home/tuannt/Documents/github/ECC or via ECC_DIR env)
@@ -152,7 +155,7 @@ pipeline doctor
 Run directly via `bin/pipeline.ts` or `bun run pipeline`:
 
 ```bash
-# Start pipeline with default profile (ecc)
+# Start pipeline with default profile (auto - smart auto-triage)
 ./bin/pipeline.ts start "Implement OAuth login"
 
 # Approve plan stage when paused at approval gate

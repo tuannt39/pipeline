@@ -223,4 +223,31 @@ describe('Patch and Investigate Profiles', () => {
     const requestMd = fs.readFileSync(path.join(created.dir, 'request.md'), 'utf8');
     expect(requestMd).toContain('Auto-Triage');
   });
+
+  it('defaults to auto profile and auto-routes when profileName is omitted', async () => {
+    const { PipelineController } = require('../src/controller');
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-default-auto-test-'));
+    const controller = new PipelineController({
+      config: structuredClone(DEFAULT_CONFIG),
+      cwd: tempDir,
+    });
+
+    // 1. Without profileName, bugfix should route to patch
+    const bugfixRun = await controller.createPipeline({
+      objective: 'Sửa lỗi null pointer trong EsignService.java',
+    });
+    expect(bugfixRun.profile.name).toBe('patch');
+
+    // 2. Without profileName, enterprise feature should route to ecc
+    const featureRun = await controller.createPipeline({
+      objective: 'Xây dựng tính năng OAuth2 SSO toàn diện',
+    });
+    expect(featureRun.profile.name).toBe('ecc');
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
 });

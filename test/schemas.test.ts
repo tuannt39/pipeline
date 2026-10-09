@@ -28,7 +28,7 @@ describe('Zod Schemas and Runtime Validation', () => {
     it('populates defaults when given an empty or minimal object', () => {
       const parsed = validatePipelineConfig({});
       expect(parsed.version).toBe(1);
-      expect(parsed.defaults.profile).toBe('ecc');
+      expect(parsed.defaults.profile).toBe('auto');
       expect(parsed.policies.require_plan_approval).toBe(true);
       expect(parsed.policies.max_fix_loops).toBe(3);
       expect(parsed.policies.max_stage_retries).toBe(2);

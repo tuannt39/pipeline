@@ -35,7 +35,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     create_worktree_only_when_requested: true,
   },
   defaults: {
-    profile: 'ecc',
+    profile: 'auto',
     agent: 'agy',
     timeout_ms: 3600000,
     max_retries: 2,
@@ -137,7 +137,7 @@ workspace:
   create_worktree_only_when_requested: true
 
 defaults:
-  profile: ecc
+  profile: auto
   agent: ${resolvedAgent}
   timeout_ms: 3600000
   max_retries: 2
@@ -156,10 +156,13 @@ policies:
   max_pipeline_retries: 1
 
 profiles:
-  ecc: ${profilesDir}/ecc.yml
+  auto: ${profilesDir.replace(/\\/g, '/')}/auto.yml
+  ecc: ${profilesDir.replace(/\\/g, '/')}/ecc.yml
+  patch: ${profilesDir.replace(/\\/g, '/')}/patch.yml
+  investigate: ${profilesDir.replace(/\\/g, '/')}/investigate.yml
 
 ecc:
-  path: "${eccDir}"
+  path: "${eccDir.replace(/\\/g, '/')}"
   auto_sync: false
 `;
     fs.writeFileSync(configPath, configYaml, 'utf8');

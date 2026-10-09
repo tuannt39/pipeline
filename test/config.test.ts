@@ -7,7 +7,7 @@ describe('Config and Profiles', () => {
     const config = loadConfig('/non/existent/path/config.yml');
     expect(config.version).toBe(1);
     expect(config.workspace.default).toBe('active');
-    expect(config.defaults.profile).toBe('ecc');
+    expect(config.defaults.profile).toBe('auto');
     expect(config.defaults.agent).toBe('agy');
     expect(config.policies.require_plan_approval).toBe(true);
     expect(config.policies.max_fix_loops).toBe(3);
@@ -86,9 +86,32 @@ stages:
       expect(res.configPath).toContain(tempDir);
       expect(fs.existsSync(res.configPath)).toBe(true);
       const content = fs.readFileSync(res.configPath, 'utf8');
-      expect(content).toContain('profile: ecc');
+      expect(content).toContain('profile: auto');
       expect(content).toContain('root: .pipeline');
       expect(content).toContain('ecc:');
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('initializes configuration with Windows backslashes in eccPath without YAML parse errors', () => {
+    const { initConfiguration, loadConfig } = require('../src/config');
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pipeline-init-winpath-'));
+    try {
+      const windowsPathWithEscapes = 'D:\\test\\git\\new\\path';
+      const res = initConfiguration({
+        linkBin: false,
+        local: true,
+        cwd: tempDir,
+        force: true,
+        eccPath: windowsPathWithEscapes,
+      });
+      expect(fs.existsSync(res.configPath)).toBe(true);
+      const loaded = loadConfig(res.configPath);
+      expect(loaded.ecc?.path).toBe('D:/test/git/new/path');
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
@@ -104,7 +127,7 @@ stages:
 
     const config = loadConfig(tmpFile);
     expect(config.version).toBe(1);
-    expect(config.defaults.profile).toBe('ecc');
+    expect(config.defaults.profile).toBe('auto');
 
     try {
       fs.unlinkSync(tmpFile);

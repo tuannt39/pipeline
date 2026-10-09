@@ -77,7 +77,7 @@ export const PipelineConfigSchema = z
       .default({ default: 'active', create_worktree_only_when_requested: true }),
     defaults: z
       .object({
-        profile: z.string().default('ecc'),
+        profile: z.string().default('auto'),
         agent: z.string().default('agy'),
         timeout_ms: z.number().int().positive().default(3600000),
         max_retries: z.number().int().nonnegative().default(2),
@@ -85,7 +85,7 @@ export const PipelineConfigSchema = z
       })
       .passthrough()
       .default({
-        profile: 'ecc',
+        profile: 'auto',
         agent: 'agy',
         timeout_ms: 3600000,
         max_retries: 2,
